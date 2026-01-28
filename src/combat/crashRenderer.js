@@ -32,6 +32,10 @@ for (let i = 0; i < 12; i++) {
   });
 }
 
+// Victory explosion particles - generated when victory happens
+const EXPLOSION_PARTICLES = [];
+const SCATTERED_TEXTS = [];
+
 /**
  * Renders The Crash entity — void visual, glitch edge, static noise,
  * error text, eye, damage flash, and screen corruption.
@@ -42,14 +46,189 @@ export function createCrashRenderer(canvas, crash, gameState, world) {
   // Noise seed that changes each frame for static effect
   let noiseSeed = 0;
 
+  // Victory animation state
+  let victoryStarted = false;
+  let eyeFallY = 0;
+  let eyeFallVy = 0;
+  let eyeRotation = 0;
+  let eyeFinalY = 0;
+
   // Simple pseudo-random from seed
   function seededRandom() {
     noiseSeed = (noiseSeed * 1664525 + 1013904223) & 0x7fffffff;
     return noiseSeed / 0x7fffffff;
   }
 
+  function initVictoryAnimation(px, py, pr, eyePx, eyePy, eyePr) {
+    if (victoryStarted) return;
+    victoryStarted = true;
+
+    eyeFallY = eyePy;
+    eyeFallVy = -8; // Initial upward pop
+    eyeFinalY = canvas.height - eyePr - 20;
+
+    // Generate explosion particles
+    EXPLOSION_PARTICLES.length = 0;
+    for (let i = 0; i < 50; i++) {
+      const angle = (i / 50) * Math.PI * 2 + Math.random() * 0.5;
+      EXPLOSION_PARTICLES.push({
+        x: px,
+        y: py,
+        vx: Math.cos(angle) * (100 + Math.random() * 200),
+        vy: Math.sin(angle) * (100 + Math.random() * 200),
+        size: 5 + Math.random() * 20,
+        color: ['#ff0040', '#00ff41', '#4285f4', '#ff00ff', '#ffffff'][Math.floor(Math.random() * 5)],
+        alpha: 1,
+        rotation: Math.random() * Math.PI * 2,
+        rotationSpeed: (Math.random() - 0.5) * 10,
+      });
+    }
+
+    // Generate scattered error texts
+    SCATTERED_TEXTS.length = 0;
+    for (let i = 0; i < 20; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      SCATTERED_TEXTS.push({
+        text: ERROR_TEXTS[Math.floor(Math.random() * ERROR_TEXTS.length)],
+        x: px,
+        y: py,
+        vx: Math.cos(angle) * (50 + Math.random() * 150),
+        vy: Math.sin(angle) * (50 + Math.random() * 150) - 100,
+        fontSize: 12 + Math.random() * 24,
+        alpha: 1,
+        rotation: (Math.random() - 0.5) * 0.5,
+        rotationSpeed: (Math.random() - 0.5) * 3,
+      });
+    }
+  }
+
+  function updateVictoryAnimation(dt) {
+    // Update eye fall
+    eyeFallVy += 800 * dt; // gravity
+    eyeFallY += eyeFallVy * dt;
+    eyeRotation += 5 * dt;
+
+    // Bounce off ground
+    if (eyeFallY >= eyeFinalY) {
+      eyeFallY = eyeFinalY;
+      eyeFallVy = -eyeFallVy * 0.4;
+      if (Math.abs(eyeFallVy) < 20) eyeFallVy = 0;
+    }
+
+    // Update explosion particles
+    for (const p of EXPLOSION_PARTICLES) {
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vy += 300 * dt; // gravity
+      p.alpha = Math.max(0, p.alpha - dt * 0.4);
+      p.rotation += p.rotationSpeed * dt;
+    }
+
+    // Update scattered texts
+    for (const t of SCATTERED_TEXTS) {
+      t.x += t.vx * dt;
+      t.y += t.vy * dt;
+      t.vy += 200 * dt; // gravity
+      t.alpha = Math.max(0, t.alpha - dt * 0.15);
+      t.rotation += t.rotationSpeed * dt;
+
+      // Bounce off ground
+      if (t.y > canvas.height - 30) {
+        t.y = canvas.height - 30;
+        t.vy = -t.vy * 0.5;
+        t.vx *= 0.8;
+      }
+    }
+  }
+
+  function drawVictoryAnimation(eyePr) {
+    const dt = 1 / 60;
+    updateVictoryAnimation(dt);
+
+    // Draw explosion particles
+    for (const p of EXPLOSION_PARTICLES) {
+      if (p.alpha <= 0) continue;
+      ctx.save();
+      ctx.globalAlpha = p.alpha;
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rotation);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+      ctx.restore();
+    }
+
+    // Draw scattered error texts
+    ctx.save();
+    ctx.font = 'bold 16px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const t of SCATTERED_TEXTS) {
+      if (t.alpha <= 0) continue;
+      ctx.save();
+      ctx.globalAlpha = t.alpha;
+      ctx.translate(t.x, t.y);
+      ctx.rotate(t.rotation);
+      ctx.font = `bold ${t.fontSize}px monospace`;
+      ctx.fillStyle = '#00ff41';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 2;
+      ctx.strokeText(t.text, 0, 0);
+      ctx.fillText(t.text, 0, 0);
+      ctx.restore();
+    }
+    ctx.restore();
+
+    // Draw fallen eye at center-bottom
+    const eyeX = canvas.width / 2;
+    ctx.save();
+    ctx.translate(eyeX, eyeFallY);
+    ctx.rotate(eyeRotation);
+    drawEyeLocal(0, 0, eyePr);
+    ctx.restore();
+  }
+
+  // Eye drawing without position transform (for victory animation)
+  function drawEyeLocal(ex, ey, er) {
+    // Dimmed/defeated look
+    ctx.globalAlpha = 0.7;
+
+    // Outer glow (dimmer)
+    const glowGrad = ctx.createRadialGradient(ex, ey, er * 0.3, ex, ey, er * 1.5);
+    glowGrad.addColorStop(0, 'rgba(100, 32, 32, 0.3)');
+    glowGrad.addColorStop(1, 'rgba(100, 32, 32, 0)');
+    ctx.beginPath();
+    ctx.arc(ex, ey, er * 1.5, 0, Math.PI * 2);
+    ctx.fillStyle = glowGrad;
+    ctx.fill();
+
+    // Iris — darker, defeated
+    ctx.beginPath();
+    ctx.arc(ex, ey, er, 0, Math.PI * 2);
+    const irisGrad = ctx.createRadialGradient(ex, ey, 0, ex, ey, er);
+    irisGrad.addColorStop(0, '#330000');
+    irisGrad.addColorStop(0.5, '#550000');
+    irisGrad.addColorStop(1, '#440000');
+    ctx.fillStyle = irisGrad;
+    ctx.fill();
+
+    // X marks (dead eyes)
+    ctx.strokeStyle = '#ff4444';
+    ctx.lineWidth = 4;
+    const xSize = er * 0.5;
+    ctx.beginPath();
+    ctx.moveTo(ex - xSize, ey - xSize);
+    ctx.lineTo(ex + xSize, ey + xSize);
+    ctx.moveTo(ex + xSize, ey - xSize);
+    ctx.lineTo(ex - xSize, ey + xSize);
+    ctx.stroke();
+
+    ctx.globalAlpha = 1;
+  }
+
   function draw() {
-    if (!gameState.isActive() && gameState.getState() !== 'victory' && gameState.getState() !== 'defeat') return;
+    const state = gameState.getState();
+
+    if (!gameState.isActive() && state !== 'victory' && state !== 'defeat') return;
 
     const center = crash.getCenter();
     const eyePos = crash.getEyePosition();
@@ -63,6 +242,13 @@ export function createCrashRenderer(canvas, crash, gameState, world) {
     const eyePr = crash.getEyeRadius() * SCALE;
 
     noiseSeed = Math.floor(Date.now() * 7);
+
+    // Victory animation
+    if (state === 'victory') {
+      initVictoryAnimation(px, py, pr, eyePx, eyePy, eyePr);
+      drawVictoryAnimation(eyePr);
+      return;
+    }
 
     // --- Screen corruption (when large) ---
     if (radius > CRASH_INITIAL_RADIUS * 2) {

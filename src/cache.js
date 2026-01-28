@@ -1,14 +1,15 @@
-// Persistent cache: localStorage (L1) + Firebase Realtime DB (L2)
+// Persistent cache: Curated (L0) + Firebase Realtime DB (L1)
 // Keys are pre-normalized by Gemini (see gemini.js normalizePrompt).
 
-const LS_PREFIX = 'objcache:';
+import { CURATED_OBJECTS } from './curatedCache.js';
 
 // Firebase keys cannot contain . $ # [ ] /
 function encodeFirebaseKey(key) {
   return key.replace(/[.$#\[\]/]/g, '_');
 }
 
-export const LS_PREFIX_EXPORT = LS_PREFIX;
+// Kept for dev.js compatibility (no longer used for caching)
+export const LS_PREFIX_EXPORT = 'objcache:';
 
 export async function fetchAllFirebase() {
   const firebaseUrl = import.meta.env.VITE_FIREBASE_DB_URL || '';
@@ -25,21 +26,6 @@ export async function fetchAllFirebase() {
 
 export function createCache() {
   const firebaseUrl = import.meta.env.VITE_FIREBASE_DB_URL || '';
-
-  function getLocal(key) {
-    try {
-      const val = localStorage.getItem(LS_PREFIX + key);
-      return val ? JSON.parse(val) : null;
-    } catch {
-      return null;
-    }
-  }
-
-  function setLocal(key, code) {
-    try {
-      localStorage.setItem(LS_PREFIX + key, JSON.stringify(code));
-    } catch { /* storage full — ignore */ }
-  }
 
   async function getFirebase(key) {
     if (!firebaseUrl) return null;
@@ -67,18 +53,16 @@ export function createCache() {
 
   return {
     async get(key) {
-      // L1: localStorage
-      const local = getLocal(key);
-      if (local) {
-        console.log('[Cache hit] localStorage:', key);
-        return local;
+      // L0: Curated (highest priority)
+      if (CURATED_OBJECTS[key]) {
+        console.log('[Cache hit] Curated:', key);
+        return CURATED_OBJECTS[key];
       }
 
-      // L2: Firebase
+      // L1: Firebase
       const remote = await getFirebase(key);
       if (remote) {
         console.log('[Cache hit] Firebase:', key);
-        setLocal(key, remote); // promote to L1
         return remote;
       }
 
@@ -87,7 +71,6 @@ export function createCache() {
     },
 
     set(key, code) {
-      setLocal(key, code);
       setFirebase(key, code);
     },
   };

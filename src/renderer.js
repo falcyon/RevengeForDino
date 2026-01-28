@@ -118,10 +118,8 @@ export function createRenderer(canvas, getObjects, sceneRefs, inputState) {
 
     // All tracked bodies
     const objects = getObjects();
-    let cursorObj = null;
     for (let i = 0; i < objects.length; i++) {
       const obj = objects[i];
-      if (obj.type === 'cursor') { cursorObj = obj; continue; }
 
       const pos = obj.body.getPosition();
       const angle = obj.body.getAngle();
@@ -181,14 +179,6 @@ export function createRenderer(canvas, getObjects, sceneRefs, inputState) {
       ctx.fill();
     }
 
-    // Cursor drawn last (always on top)
-    if (cursorObj) {
-      const cpos = cursorObj.body.getPosition();
-      ctx.save();
-      ctx.translate(cpos.x * SCALE, cpos.y * SCALE);
-      drawCursorArrow(ctx);
-      ctx.restore();
-    }
   }
 
   return { draw };
@@ -458,8 +448,11 @@ function drawGeminiIcon(ctx, obj) {
 
   ctx.save();
 
-  // Bezier-eased spin when loading
-  if (obj.loading) {
+  // Flourish rotation during entrance animation
+  if (obj.flourishRotation) {
+    ctx.rotate(obj.flourishRotation);
+  } else if (obj.loading) {
+    // Bezier-eased spin when loading
     const period = 1500;
     const raw = (Date.now() % period) / period;
     const eased = raw < 0.5 ? 4 * raw * raw * raw : 1 - Math.pow(-2 * raw + 2, 3) / 2;
@@ -469,20 +462,46 @@ function drawGeminiIcon(ctx, obj) {
   // Flourish sparkle effect during entrance
   if (obj.flourishStartTime && obj.flourishScale < 1) {
     const elapsed = Date.now() - obj.flourishStartTime;
-    const sparkleAlpha = Math.max(0, 1 - elapsed / 800);
-    if (sparkleAlpha > 0) {
-      // Draw expanding sparkle rings
-      ctx.globalAlpha = sparkleAlpha * 0.5;
-      for (let i = 1; i <= 3; i++) {
-        const ringR = r * (1 + i * 0.4 * (1 - sparkleAlpha));
+    const progress = Math.min(elapsed / 1500, 1);
+
+    // Sparkle particles flying outward
+    const numSparkles = 8;
+    for (let i = 0; i < numSparkles; i++) {
+      const angle = (i / numSparkles) * Math.PI * 2 + elapsed * 0.003;
+      const dist = r * (0.5 + progress * 2);
+      const sparkleSize = r * 0.15 * (1 - progress);
+      const alpha = (1 - progress) * 0.8;
+
+      if (alpha > 0 && sparkleSize > 0) {
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.translate(Math.cos(angle) * dist, Math.sin(angle) * dist);
+        ctx.rotate(angle + elapsed * 0.01);
+
+        // Mini 4-pointed star
+        ctx.fillStyle = i % 2 === 0 ? '#4285f4' : '#fbbc04';
         ctx.beginPath();
-        ctx.arc(0, 0, ringR, 0, Math.PI * 2);
-        ctx.strokeStyle = i % 2 === 0 ? '#4285f4' : '#a259ff';
-        ctx.lineWidth = 3 - i * 0.5;
-        ctx.stroke();
+        ctx.moveTo(0, -sparkleSize);
+        ctx.quadraticCurveTo(sparkleSize * 0.3, -sparkleSize * 0.3, sparkleSize, 0);
+        ctx.quadraticCurveTo(sparkleSize * 0.3, sparkleSize * 0.3, 0, sparkleSize);
+        ctx.quadraticCurveTo(-sparkleSize * 0.3, sparkleSize * 0.3, -sparkleSize, 0);
+        ctx.quadraticCurveTo(-sparkleSize * 0.3, -sparkleSize * 0.3, 0, -sparkleSize);
+        ctx.fill();
+        ctx.restore();
       }
-      ctx.globalAlpha = 1;
     }
+
+    // Glowing ring
+    const ringAlpha = Math.sin(progress * Math.PI) * 0.6;
+    if (ringAlpha > 0) {
+      ctx.globalAlpha = ringAlpha;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * (1.2 + progress * 0.5), 0, Math.PI * 2);
+      ctx.strokeStyle = '#a259ff';
+      ctx.lineWidth = 4 * (1 - progress);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
   }
 
   // Gemini sparkle: four-pointed star drawn with bezier curves
@@ -697,27 +716,6 @@ function drawSpeechBubble(ctx, text, spriteHeight) {
     ctx.fillText(lines[i], bubbleX + padding, bubbleY + padding + i * lineHeight);
   }
   ctx.textAlign = 'left';
-}
-
-function drawCursorArrow(ctx) {
-  // Standard arrow cursor shape (pixel-sized, drawn at body origin)
-  // The body origin is the arrow tip (top-left corner of the cursor)
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.lineTo(0, 21);
-  ctx.lineTo(4.2, 16.8);
-  ctx.lineTo(8.4, 24);
-  ctx.lineTo(11.2, 22.4);
-  ctx.lineTo(7, 15.4);
-  ctx.lineTo(12.6, 14.7);
-  ctx.closePath();
-
-  ctx.fillStyle = '#ffffff';
-  ctx.fill();
-  ctx.strokeStyle = '#000000';
-  ctx.lineWidth = 1.2;
-  ctx.lineJoin = 'round';
-  ctx.stroke();
 }
 
 function drawMassLabel(ctx, obj) {

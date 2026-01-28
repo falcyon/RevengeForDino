@@ -6,7 +6,7 @@ import { SCALE, WALL_THICKNESS, CAT_WALL } from './constants.js';
  * sized to the current window dimensions.
  */
 export function createWorld() {
-  const world = new planck.World({ gravity: new planck.Vec2(0, 100) });
+  const world = new planck.World({ gravity: new planck.Vec2(0, 40) });
 
   const W = window.innerWidth / SCALE;
   const H = window.innerHeight / SCALE;

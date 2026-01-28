@@ -50,6 +50,7 @@ export function createGeminiIcon(world, canvas) {
     visible: false,
     flourishScale: 0,
     flourishStartTime: 0,
+    flourishRotation: 0,
   };
   registerObject(obj);
 
@@ -75,33 +76,58 @@ export function createGeminiIcon(world, canvas) {
   const BOB_FREQ_Y = 0.22; // Hz (different from X for lissajous feel)
 
   // Flourish animation duration
-  const FLOURISH_DURATION = 800; // ms
+  const FLOURISH_DURATION = 1500; // ms - longer for more dramatic entrance
 
   function update() {
     if (!obj.visible) return;
 
     t += 1 / 60;
 
-    // Flourish entrance animation
+    // Flourish entrance animation - dramatic spiral zoom
     if (obj.flourishStartTime > 0) {
       const elapsed = Date.now() - obj.flourishStartTime;
       if (elapsed < FLOURISH_DURATION) {
-        // Ease out elastic for bouncy appearance
         const progress = elapsed / FLOURISH_DURATION;
-        const elastic = 1 - Math.pow(2, -10 * progress) * Math.cos(progress * Math.PI * 3);
-        obj.flourishScale = Math.min(1, elastic);
 
-        // During flourish, stay at center
+        // Scale: starts tiny, overshoots to 1.3, settles at 1
+        let scale;
+        if (progress < 0.6) {
+          // Zoom in with overshoot
+          const t = progress / 0.6;
+          scale = t * t * (3 - 2 * t) * 1.3; // smoothstep to 1.3
+        } else {
+          // Settle back to 1
+          const t = (progress - 0.6) / 0.4;
+          scale = 1.3 - 0.3 * (t * t * (3 - 2 * t)); // smoothstep back to 1
+        }
+        obj.flourishScale = scale;
+
+        // Spiral path from bottom-center up to final position
+        const spiralRadius = (1 - progress) * 15; // shrinks from 15 to 0
+        const spiralAngle = progress * Math.PI * 4; // 2 full rotations
         const centerX = W / 2;
-        const centerY = H / 2;
+        const centerY = H * 0.75;
+
+        // Start from below screen, spiral up
+        const startY = H + 10;
+        const currentY = startY + (centerY - startY) * Math.pow(progress, 0.5);
+
+        const targetX = centerX + Math.cos(spiralAngle) * spiralRadius;
+        const targetY = currentY + Math.sin(spiralAngle) * spiralRadius * 0.5;
+
         const pos = body.getPosition();
-        const dx = centerX - pos.x;
-        const dy = centerY - pos.y;
-        body.setLinearVelocity(new planck.Vec2(dx * 3, dy * 3));
+        const dx = targetX - pos.x;
+        const dy = targetY - pos.y;
+        body.setLinearVelocity(new planck.Vec2(dx * 8, dy * 8));
+
+        // Spin the icon during flourish (stored for renderer)
+        obj.flourishRotation = progress * Math.PI * 6; // 3 full spins
+
         return;
       } else {
         obj.flourishScale = 1;
         obj.flourishStartTime = 0; // Animation complete
+        obj.flourishRotation = 0;
       }
     }
 

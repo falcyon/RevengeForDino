@@ -10,7 +10,6 @@ import { createExecutor } from './executor.js';
 import { createLoadingOverlay } from './loading.js';
 import { createCache } from './cache.js';
 import { createGeminiIcon } from './geminiIcon.js';
-import { createCursorBody } from './cursorBody.js';
 import { createHealthBar } from './healthBar.js';
 import { createIntro } from './intro.js';
 import { createGameState } from './combat/gameState.js';
@@ -56,7 +55,6 @@ async function handleSearch(text, searchBarBody) {
   isGenerating = true;
   searchBar.setLoading(true);
   geminiIcon.setLoading(true);
-  overlay.showLoading(`Generating "${text}"...`);
 
   // Stop animated placeholder when user starts searching
   searchBar.stopAnimatedPlaceholder();
@@ -72,9 +70,9 @@ async function handleSearch(text, searchBarBody) {
       const spawnX = W * 0.75 + Math.random() * (W * 0.2);
       const spawnY = H * 0.25;
       executor.execute(cached, spawnX, spawnY);
+      gameState.trackObjectCreated();
       // Show the cached code in Gemini's speech bubble
       showCodeInSpeechBubble(cached);
-      overlay.showSuccess(`Created "${text}"! (cached)`);
       return;
     }
 
@@ -85,10 +83,10 @@ async function handleSearch(text, searchBarBody) {
     const spawnY = H * 0.15;
 
     executor.execute(code, spawnX, spawnY);
+    gameState.trackObjectCreated();
     cache.set(key, code);
     // Show the generated code in Gemini's speech bubble
     showCodeInSpeechBubble(code);
-    overlay.showSuccess(`Created "${text}"!`);
   } catch (e) {
     console.error('Generation failed:', e);
     overlay.showError(e.message);
@@ -112,8 +110,7 @@ function showCodeInSpeechBubble(code) {
 createGooglePage(world);
 const searchBar = createSearchBar(world, W * 0.5, H * 0.40, handleSearch);
 
-// --- Cursor & Gemini icon ---
-const cursorBody = createCursorBody(world, canvas);
+// --- Gemini icon ---
 const geminiIcon = createGeminiIcon(world, canvas);
 
 // --- Input ---
@@ -130,7 +127,10 @@ const intro = createIntro(world, canvas, healthBar, geminiIcon, searchBar);
 const gameState = createGameState(healthBar);
 const crash = createCrash(world, gameState, healthBar, W, H);
 const crashRenderer = createCrashRenderer(canvas, crash, gameState, world);
-const combatHUD = createCombatHUD(canvas, gameState);
+const combatHUD = createCombatHUD(canvas, gameState, geminiIcon, intro);
+
+// Wire up target provider to aim at The Crash's eye
+executor.setTargetProvider(() => crash.getEyePosition());
 let combatSpawnScheduled = false;
 let crashDestroyed = false;
 
@@ -161,7 +161,6 @@ function loop() {
     }
   }
 
-  cursorBody.update();
   geminiIcon.update();
 
   // Update combat

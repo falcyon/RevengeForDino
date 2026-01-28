@@ -2,7 +2,7 @@ import planck from 'planck';
 import { SCALE } from './constants.js';
 import { registerObject, unregisterObject } from './objects.js';
 
-const MAX_EPHEMERAL = 200;
+const MAX_EPHEMERAL = 400;
 
 export function createExecutor(world) {
   const updaters = [];
@@ -11,7 +11,14 @@ export function createExecutor(world) {
   const W = window.innerWidth / SCALE;
   const H = window.innerHeight / SCALE;
 
-  function execute(code, spawnX, spawnY) {
+  // Default getTarget returns null (no target)
+  let targetProvider = () => null;
+
+  function setTargetProvider(fn) {
+    targetProvider = fn;
+  }
+
+  function execute(code, spawnX, spawnY, targetX = null, targetY = null) {
     let inUpdate = false;
     const rootBodies = []; // non-ephemeral bodies created by this execute() call
 
@@ -24,12 +31,6 @@ export function createExecutor(world) {
         const ud = obj.body.getUserData() || {};
         ud.isEphemeral = true;
         obj.body.setUserData(ud);
-        // Weightless particles: no gravity, zero density
-        obj.body.setGravityScale(0);
-        for (let f = obj.body.getFixtureList(); f; f = f.getNext()) {
-          f.setDensity(0);
-        }
-        obj.body.resetMassData();
         ephemeral.push(obj);
         if (ephemeral.length > MAX_EPHEMERAL) {
           const old = ephemeral.shift();
@@ -41,10 +42,15 @@ export function createExecutor(world) {
       }
     }
 
+    // getTarget returns current enemy position (dynamic)
+    function getTarget() {
+      return targetProvider();
+    }
+
     let fn;
     try {
       fn = new Function(
-        'planck', 'world', 'registerObject', 'W', 'H', 'spawnX', 'spawnY',
+        'planck', 'world', 'registerObject', 'W', 'H', 'spawnX', 'spawnY', 'targetX', 'targetY', 'getTarget',
         code,
       );
     } catch (e) {
@@ -53,7 +59,7 @@ export function createExecutor(world) {
 
     let result;
     try {
-      result = fn(planck, world, wrappedRegister, W, H, spawnX, spawnY);
+      result = fn(planck, world, wrappedRegister, W, H, spawnX, spawnY, targetX, targetY, getTarget);
     } catch (e) {
       throw new Error(`Runtime error in generated code: ${e.message}`);
     }
@@ -81,5 +87,5 @@ export function createExecutor(world) {
     return updaters;
   }
 
-  return { execute, getUpdaters };
+  return { execute, getUpdaters, setTargetProvider };
 }

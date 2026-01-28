@@ -14,11 +14,20 @@ export function createGameState(healthBar) {
   let elapsed = 0;
   let damageFlash = 0;
 
+  // Stats tracking
+  let objectsCreated = 0;
+  let objectsConsumed = 0;
+  let totalDamageDealt = 0;
+  let victoryTime = 0;
+
   function start() {
     if (state !== 'idle') return;
     state = 'entering';
     visualRadius = CRASH_INITIAL_RADIUS;
     elapsed = 0;
+    objectsCreated = 0;
+    objectsConsumed = 0;
+    totalDamageDealt = 0;
   }
 
   function enterCombat() {
@@ -43,6 +52,7 @@ export function createGameState(healthBar) {
     // Win condition: health depleted
     if (healthBar.getHealth() <= 0 && state === 'combat') {
       state = 'victory';
+      victoryTime = Date.now();
       return;
     }
 
@@ -65,6 +75,29 @@ export function createGameState(healthBar) {
     return state;
   }
 
+  // Stats tracking methods
+  function trackObjectCreated() {
+    objectsCreated++;
+  }
+
+  function trackObjectConsumed() {
+    objectsConsumed++;
+  }
+
+  function trackDamage(amount) {
+    totalDamageDealt += amount;
+  }
+
+  function getStats() {
+    return {
+      objectsCreated,
+      objectsConsumed,
+      totalDamageDealt,
+      elapsed,
+      victoryTime,
+    };
+  }
+
   return {
     start,
     enterCombat,
@@ -72,8 +105,13 @@ export function createGameState(healthBar) {
     triggerDamageFlash,
     isActive,
     getState,
+    trackObjectCreated,
+    trackObjectConsumed,
+    trackDamage,
+    getStats,
     get visualRadius() { return visualRadius; },
     get elapsed() { return elapsed; },
     get damageFlash() { return damageFlash; },
+    get victoryTime() { return victoryTime; },
   };
 }

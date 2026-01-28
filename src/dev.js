@@ -1,6 +1,7 @@
 import planck from 'planck';
 import { SCALE, WALL_THICKNESS, CAT_WALL, COLORS } from './constants.js';
 import { fetchAllFirebase, LS_PREFIX_EXPORT } from './cache.js';
+import { CURATED_OBJECTS } from './curatedCache.js';
 
 // --- Canvas setup ---
 const canvas = document.getElementById('c');
@@ -23,7 +24,7 @@ const objects = [];
 const updaters = [];
 
 function createWorld() {
-  const w = new planck.World({ gravity: new planck.Vec2(0, 100) });
+  const w = new planck.World({ gravity: new planck.Vec2(0, 40) });
   const W = canvas.width / SCALE;
   const H = canvas.height / SCALE;
   const t = WALL_THICKNESS;
@@ -45,6 +46,17 @@ function createWorld() {
     body.setUserData({ isWall: true });
   }
 
+  // Visible floor platform
+  const floorH = 2;
+  const floor = w.createBody({ type: 'static', position: new planck.Vec2(W / 2, H - floorH) });
+  floor.createFixture(new planck.Box(W / 2, floorH), {
+    friction: 0.8,
+    filterCategoryBits: CAT_WALL,
+    filterMaskBits: 0xFFFF,
+  });
+  floor.setUserData({ isWall: true, isFloor: true });
+  objects.push({ body: floor, type: 'rect', hw: W / 2, hh: floorH, color: '#333' });
+
   return w;
 }
 
@@ -53,17 +65,27 @@ function registerObject(obj) {
 }
 
 // --- Executor (inline, mirrors src/executor.js but uses local state) ---
-const MAX_EPHEMERAL = 200;
+const MAX_EPHEMERAL = 400;
 const ephemeral = []; // global ring buffer for bodies created during update()
+
+// Dev page target: bottom center (simulated enemy position)
+let devTargetX = null;
+let devTargetY = null;
 
 function unregisterObject(obj) {
   const i = objects.indexOf(obj);
   if (i !== -1) objects.splice(i, 1);
 }
 
-function execute(code, spawnX, spawnY) {
+function execute(code, spawnX, spawnY, targetX = null, targetY = null) {
   const W = canvas.width / SCALE;
   const H = canvas.height / SCALE;
+
+  // Default target to left side, 90% down
+  const tx = targetX ?? W * 0.15;
+  const ty = targetY ?? H * 0.9;
+  devTargetX = tx;
+  devTargetY = ty;
 
   let inUpdate = false;
 
@@ -80,10 +102,15 @@ function execute(code, spawnX, spawnY) {
     }
   }
 
+  // getTarget returns current target position (for dev, it's static)
+  function getTarget() {
+    return { x: devTargetX, y: devTargetY };
+  }
+
   let fn;
   try {
     fn = new Function(
-      'planck', 'world', 'registerObject', 'W', 'H', 'spawnX', 'spawnY',
+      'planck', 'world', 'registerObject', 'W', 'H', 'spawnX', 'spawnY', 'targetX', 'targetY', 'getTarget',
       code,
     );
   } catch (e) {
@@ -93,7 +120,7 @@ function execute(code, spawnX, spawnY) {
 
   let result;
   try {
-    result = fn(planck, world, wrappedRegister, W, H, spawnX, spawnY);
+    result = fn(planck, world, wrappedRegister, W, H, spawnX, spawnY, tx, ty, getTarget);
   } catch (e) {
     statusEl.textContent = `Runtime error: ${e.message}`;
     return;
@@ -133,16 +160,26 @@ function clearWorld() {
     if (body.getUserData()?.isWall) continue;
     world.destroyBody(body);
   }
-  objects.length = 0;
+  // Keep floor in objects array, remove everything else
+  for (let i = objects.length - 1; i >= 0; i--) {
+    if (!objects[i].body.getUserData()?.isFloor) {
+      objects.splice(i, 1);
+    }
+  }
   updaters.length = 0;
   statusEl.textContent = 'Cleared.';
 }
 
 // --- Rebuild world from scratch ---
 function resetWorld() {
-  world = createWorld();
   objects.length = 0;
   updaters.length = 0;
+  world = createWorld(); // createWorld adds floor to objects
+  // Set default target position (left side, 90% down)
+  const W = canvas.width / SCALE;
+  const H = canvas.height / SCALE;
+  devTargetX = W * 0.15;
+  devTargetY = H * 0.9;
 }
 
 // --- Simple renderer (draws circles, rects, and generic shapes) ---
@@ -231,6 +268,26 @@ function draw() {
   // Also draw any bodies not in objects array (from generated code that creates bodies directly)
   // This catches bodies created without registerObject
   drawUntracked();
+
+  // Draw target crosshair
+  if (devTargetX != null && devTargetY != null) {
+    const tx = devTargetX * SCALE;
+    const ty = devTargetY * SCALE;
+    const size = 15;
+    ctx.strokeStyle = '#ff4444';
+    ctx.lineWidth = 2;
+    // Crosshair
+    ctx.beginPath();
+    ctx.moveTo(tx - size, ty);
+    ctx.lineTo(tx + size, ty);
+    ctx.moveTo(tx, ty - size);
+    ctx.lineTo(tx, ty + size);
+    ctx.stroke();
+    // Circle
+    ctx.beginPath();
+    ctx.arc(tx, ty, size * 0.7, 0, Math.PI * 2);
+    ctx.stroke();
+  }
 }
 
 function drawUntracked() {
@@ -367,6 +424,11 @@ async function fetchEntries() {
     }
   }
 
+  // Curated (highest priority - overwrites others)
+  for (const [key, code] of Object.entries(CURATED_OBJECTS)) {
+    entries[key] = code;
+  }
+
   renderSidebar();
   statusEl.textContent = `${Object.keys(entries).length} cached objects`;
 }
@@ -398,7 +460,7 @@ function spawnEntry(key) {
 
   const W = canvas.width / SCALE;
   const H = canvas.height / SCALE;
-  const spawnX = W / 2;
+  const spawnX = W * 0.7;
   const spawnY = H * 0.2;
 
   execute(code, spawnX, spawnY);

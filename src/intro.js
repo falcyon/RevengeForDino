@@ -65,8 +65,8 @@ export function createIntro(world, canvas, healthBar, geminiIcon, searchBar) {
 
     const dinoArea = 4 * HITBOX_HW * HITBOX_HH;
     dinoBody.createFixture(new planck.Box(HITBOX_HW, HITBOX_HH, new planck.Vec2(HITBOX_OFFSET_X, HITBOX_OFFSET_Y), Math.PI / 6), {
-      density: 0.1 / dinoArea,
-      friction: 0.4,
+      density: 0.2 / dinoArea,
+      friction: 0.5,
       restitution: 0.1,
       filterCategoryBits: CAT_DINO,
       filterMaskBits: 0, // no collisions while running (cinematic)
@@ -102,7 +102,7 @@ export function createIntro(world, canvas, healthBar, geminiIcon, searchBar) {
     dinoObj.currentFrame = 4;
 
     // Hide speech bubble after a few seconds
-    setTimeout(() => { dinoObj.showSpeech = false; }, 3000);
+    setTimeout(() => { dinoObj.showSpeech = false; }, 6000);
 
     // Upward fling with a bit of forward momentum and clockwise spin
     dinoBody.setLinearVelocity(new planck.Vec2(5, -10));
@@ -198,5 +198,9 @@ export function createIntro(world, canvas, healthBar, geminiIcon, searchBar) {
     return complete;
   }
 
-  return { update, isComplete };
+  function getDinoBody() {
+    return dinoBody;
+  }
+
+  return { update, isComplete, getDinoBody };
 }

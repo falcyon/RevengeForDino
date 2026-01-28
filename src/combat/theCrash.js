@@ -25,7 +25,7 @@ export function createCrash(world, gameState, healthBar, W, H) {
   // --- Spawn position: off-screen left, centered vertically ---
   const startRadius = CRASH_INITIAL_RADIUS;
   let cx = -startRadius;
-  let cy = H * 0.90;
+  let cy = H * 0.60;
 
   // --- Entry target: just enough to be fully on screen ---
   let targetX = startRadius + 10; // stop once visual is fully visible
@@ -97,6 +97,7 @@ export function createCrash(world, gameState, healthBar, W, H) {
 
     // Schedule destruction (can't destroy during contact callback)
     scheduledDestroys.push(otherBody);
+    gameState.trackObjectConsumed();
   }
 
   function handleEyeContact(crashFixture, otherFixture) {
@@ -118,6 +119,7 @@ export function createCrash(world, gameState, healthBar, W, H) {
     if (damage > 0.1) {
       healthBar.takeDamage(damage);
       gameState.triggerDamageFlash();
+      gameState.trackDamage(damage);
     }
   }
 
