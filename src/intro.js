@@ -20,9 +20,11 @@ const T = {
   FLASH_END:   3500,
   BAR_FULL:    4000,
   DINO_SPAWN:  4500,  // after bar turns red
+  GEMINI_APPEAR: 1500, // ms after dino trips
 };
 
 const SPEECH_TEXT = 'OH NOOO THE CRASHING CORRUPTING CORE IS HERE!! ITS GOING TO DESTROY ALL OF US SAVE USSS';
+const GEMINI_SPEECH = 'Oh no, Dino! Please help me defeat The Crash! Build things by searching for them!';
 const RUN_SPEED = 15;    // m/s rightward
 
 // ─── Sprite image (base64 data URI) ────────────────────────────────────────
@@ -30,7 +32,7 @@ const trexImage = new Image();
 trexImage.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAhAAAABeAgMAAAAPo8UvAAAADFBMVEX///9TU1P39/f///+TS9URAAAAAXRSTlMAQObYZgAAASdJREFUeF7t1qFOBEEQRdEyGP7vGQy/hsHc/0MPSe8ylU2vKEIqqQnviRZXdI7pyUQuONda901FGAG6j8aa+6mDEUboHP01sk5EHHWEjt/UY0dk/U+Ir/cdkXUEovV1GFF/HQMR/mLWEUYYYQRrf65XRhgB2595Y80lYRjCCG7AV/IZ0FdDabgDhiKMgE+tAX01ES+ajDBCADpHZw0tRdaZCCNEGhCdNSSlQTEVYUROQGeNxxoxH2EErXU+wohdQXONqyBorDsixiB2Be01JiOM2BXQX1MRUxFGpAL6aypiMsIIJCFBtSK98fFYKd6wFDEbYUQgEYh6hTSkonbDDTAdYQTrKNd9QPWGUFwAYYRYR7U+XemGfB0ajTACWEe1Pl3thtxMhBHfOCEbEnR2KZcAAAAASUVORK5CYII=';
 
 // ─── Public factory ────────────────────────────────────────────────────────
-export function createIntro(world, canvas, healthBar) {
+export function createIntro(world, canvas, healthBar, geminiIcon, searchBar) {
   const W = canvas.width / SCALE;
   const H = canvas.height / SCALE;
 
@@ -40,6 +42,8 @@ export function createIntro(world, canvas, healthBar) {
   let complete = false;
   let dinoSpawned = false;
   let dinoTripped = false;
+  let dinoTripTime = 0;
+  let geminiAppeared = false;
 
   // Ground Y: dino feet on top of the footer bar (top edge at H - 7.5)
   const groundY = H - 7.5 - DINO_HH;
@@ -86,6 +90,7 @@ export function createIntro(world, canvas, healthBar) {
   // ── Trip the dino ─────────────────────────────────────────────────────
   function tripDino() {
     dinoTripped = true;
+    dinoTripTime = Date.now();
 
     // Enable gravity so it falls
     dinoBody.setGravityScale(1);
@@ -166,6 +171,25 @@ export function createIntro(world, canvas, healthBar) {
       const pos = dinoBody.getPosition();
       if (pos.x >= tripX) {
         tripDino();
+      }
+    }
+
+    // ── Gemini icon appearance after dino trips ──
+    if (dinoTripped && !geminiAppeared && dinoTripTime > 0) {
+      const timeSinceTrip = Date.now() - dinoTripTime;
+      if (timeSinceTrip >= T.GEMINI_APPEAR && geminiIcon) {
+        geminiAppeared = true;
+        geminiIcon.appear(GEMINI_SPEECH);
+
+        // Hide Gemini's intro speech after a few seconds and start placeholder animation
+        setTimeout(() => {
+          if (geminiIcon) {
+            geminiIcon.hideSpeech();
+          }
+          if (searchBar) {
+            searchBar.startAnimatedPlaceholder();
+          }
+        }, 5000);
       }
     }
   }

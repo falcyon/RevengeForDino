@@ -7,6 +7,15 @@ const HW = 40;
 const HH = 3;
 const MASS = 6;
 
+// Animated placeholder suggestions
+const PLACEHOLDER_SUGGESTIONS = [
+  'build me a tank, please',
+  'let there be acid rain',
+  'summon a bouncy ball',
+  'create a catapult',
+  'make it rain anvils',
+];
+
 /**
  * Creates a Google-style search bar.
  * Starts as a **static** body pinned in place.
@@ -40,9 +49,73 @@ export function createSearchBar(world, x, y, onSubmit) {
     text: '',           // live user input; empty = show placeholder
     focused: false,
     loading: false,
+    // Animated placeholder state
+    animatedPlaceholder: '',
+    animatedPlaceholderEnabled: false,
   };
 
   registerObject(obj);
+
+  // --- Animated placeholder cycling ---
+  let currentSuggestionIdx = 0;
+  let currentCharIdx = 0;
+  let isDeleting = false;
+  let animationInterval = null;
+  let pauseTimeout = null;
+
+  function animatePlaceholder() {
+    if (!obj.animatedPlaceholderEnabled || obj.text || obj.loading) {
+      obj.animatedPlaceholder = '';
+      return;
+    }
+
+    const currentSuggestion = PLACEHOLDER_SUGGESTIONS[currentSuggestionIdx];
+
+    if (!isDeleting) {
+      // Typing forward
+      currentCharIdx++;
+      obj.animatedPlaceholder = currentSuggestion.substring(0, currentCharIdx);
+
+      if (currentCharIdx >= currentSuggestion.length) {
+        // Pause at full text before deleting
+        clearInterval(animationInterval);
+        pauseTimeout = setTimeout(() => {
+          isDeleting = true;
+          animationInterval = setInterval(animatePlaceholder, 40); // Faster delete
+        }, 1500);
+      }
+    } else {
+      // Deleting
+      currentCharIdx--;
+      obj.animatedPlaceholder = currentSuggestion.substring(0, currentCharIdx);
+
+      if (currentCharIdx <= 0) {
+        // Move to next suggestion
+        isDeleting = false;
+        currentSuggestionIdx = (currentSuggestionIdx + 1) % PLACEHOLDER_SUGGESTIONS.length;
+        clearInterval(animationInterval);
+        pauseTimeout = setTimeout(() => {
+          animationInterval = setInterval(animatePlaceholder, 70); // Normal typing speed
+        }, 300);
+      }
+    }
+  }
+
+  function startAnimatedPlaceholder() {
+    obj.animatedPlaceholderEnabled = true;
+    currentSuggestionIdx = 0;
+    currentCharIdx = 0;
+    isDeleting = false;
+    obj.animatedPlaceholder = '';
+    animationInterval = setInterval(animatePlaceholder, 70);
+  }
+
+  function stopAnimatedPlaceholder() {
+    obj.animatedPlaceholderEnabled = false;
+    obj.animatedPlaceholder = '';
+    if (animationInterval) clearInterval(animationInterval);
+    if (pauseTimeout) clearTimeout(pauseTimeout);
+  }
 
   // --- Click-to-focus ---
   window.addEventListener('mousedown', (e) => {
@@ -69,5 +142,10 @@ export function createSearchBar(world, x, y, onSubmit) {
     }
   });
 
-  return { body, setLoading(v) { obj.loading = v; } };
+  return {
+    body,
+    setLoading(v) { obj.loading = v; },
+    startAnimatedPlaceholder,
+    stopAnimatedPlaceholder,
+  };
 }

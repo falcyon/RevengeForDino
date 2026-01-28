@@ -1,6 +1,7 @@
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+// Using gemini-2.0-flash for code generation (faster, more reliable)
 const API_URL =
-  `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${API_KEY}`;
+  `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
 const FLASH_URL =
   `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
 
@@ -34,19 +35,40 @@ throw new Error("Cannot understand request");
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000; // ms
+const FETCH_TIMEOUT = 60000; // 60 seconds timeout
+
+async function fetchWithTimeout(url, options, timeout = FETCH_TIMEOUT) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 async function fetchWithRetry(url, options) {
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    const response = await fetch(url, options);
-    if (response.ok) return response;
-    if (response.status === 503 || response.status === 429) {
-      console.warn(`API overloaded (${response.status}), retry ${attempt + 1}/${MAX_RETRIES}...`);
-      await new Promise(r => setTimeout(r, RETRY_DELAY * (attempt + 1)));
-      continue;
+    try {
+      const response = await fetchWithTimeout(url, options);
+      if (response.ok) return response;
+      if (response.status === 503 || response.status === 429) {
+        console.warn(`API overloaded (${response.status}), retry ${attempt + 1}/${MAX_RETRIES}...`);
+        await new Promise(r => setTimeout(r, RETRY_DELAY * (attempt + 1)));
+        continue;
+      }
+      return response; // non-retryable error
+    } catch (e) {
+      if (e.name === 'AbortError') {
+        console.warn(`Request timeout, retry ${attempt + 1}/${MAX_RETRIES}...`);
+        if (attempt === MAX_RETRIES - 1) throw new Error('Request timed out after multiple attempts');
+        continue;
+      }
+      throw e;
     }
-    return response; // non-retryable error
   }
-  return fetch(url, options); // final attempt
+  return fetchWithTimeout(url, options); // final attempt
 }
 
 const conversationHistory = [];

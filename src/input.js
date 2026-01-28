@@ -43,7 +43,7 @@ export function setupInput(canvas, world) {
   function createJointFor(body, wp) {
     mouseJoint = world.createJoint(
       new planck.MouseJoint(
-        { maxForce: 500 * body.getMass(), frequencyHz: 5, dampingRatio: 0.7 },
+        { maxForce: 1500 * body.getMass(), frequencyHz: 8, dampingRatio: 0.5 },
         groundBody,
         body,
         wp,

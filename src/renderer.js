@@ -10,6 +10,84 @@ import { SCALE, COLORS, DEBUG } from './constants.js';
  */
 export function createRenderer(canvas, getObjects, sceneRefs, inputState) {
   const ctx = canvas.getContext('2d');
+  const startTime = Date.now();
+
+  // Weathering effect state
+  let weatheringIntensity = 0;
+  const WEATHERING_START = 3000;   // Start after 3 seconds
+  const WEATHERING_RAMP = 15000;   // Full intensity over 15 more seconds
+
+  // Pseudo-random for consistent noise
+  let noiseSeed = 0;
+  function seededRandom() {
+    noiseSeed = (noiseSeed * 1664525 + 1013904223) & 0x7fffffff;
+    return noiseSeed / 0x7fffffff;
+  }
+
+  function drawWeatheringEffects(width, height) {
+    const elapsed = Date.now() - startTime;
+    if (elapsed < WEATHERING_START) return;
+
+    // Calculate intensity (0 to 1)
+    weatheringIntensity = Math.min(1, (elapsed - WEATHERING_START) / WEATHERING_RAMP);
+    const intensity = weatheringIntensity;
+
+    noiseSeed = Math.floor(Date.now() * 3);
+    const time = Date.now() * 0.001;
+
+    ctx.save();
+
+    // 1. Subtle color tint shift (getting more red/corrupted)
+    ctx.fillStyle = `rgba(255, 240, 235, ${intensity * 0.15})`;
+    ctx.fillRect(0, 0, width, height);
+
+    // 2. Random noise specks
+    const noiseCount = Math.floor(20 + intensity * 80);
+    for (let i = 0; i < noiseCount; i++) {
+      const x = seededRandom() * width;
+      const y = seededRandom() * height;
+      const size = 1 + seededRandom() * 2;
+      const alpha = 0.03 + seededRandom() * 0.05 * intensity;
+
+      ctx.fillStyle = seededRandom() > 0.5
+        ? `rgba(0, 0, 0, ${alpha})`
+        : `rgba(255, 0, 50, ${alpha * 0.5})`;
+      ctx.fillRect(x, y, size, size);
+    }
+
+    // 4. Occasional glitch bars (horizontal displacement effect)
+    if (intensity > 0.3) {
+      const glitchCount = Math.floor(intensity * 4);
+      for (let i = 0; i < glitchCount; i++) {
+        if (seededRandom() > 0.7) {
+          const y = seededRandom() * height;
+          const h = 1 + seededRandom() * 3;
+          const offset = (seededRandom() - 0.5) * 10 * intensity;
+
+          ctx.fillStyle = `rgba(255, 0, 60, ${0.05 * intensity})`;
+          ctx.fillRect(offset, y, width, h);
+        }
+      }
+    }
+
+    // 5. Vignette darkening at edges (intensifies over time)
+    const vignetteGrad = ctx.createRadialGradient(
+      width / 2, height / 2, Math.min(width, height) * 0.3,
+      width / 2, height / 2, Math.max(width, height) * 0.8
+    );
+    vignetteGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    vignetteGrad.addColorStop(1, `rgba(20, 0, 10, ${intensity * 0.25})`);
+    ctx.fillStyle = vignetteGrad;
+    ctx.fillRect(0, 0, width, height);
+
+    // 5. Flickering brightness (subtle, starts early)
+    if (intensity > 0.1 && Math.sin(time * 15) > 0.95) {
+      ctx.fillStyle = `rgba(255, 255, 255, ${0.03 * intensity})`;
+      ctx.fillRect(0, 0, width, height);
+    }
+
+    ctx.restore();
+  }
 
   function draw() {
     const { width, height } = canvas;
@@ -18,6 +96,9 @@ export function createRenderer(canvas, getObjects, sceneRefs, inputState) {
     // Background
     ctx.fillStyle = COLORS.background;
     ctx.fillRect(0, 0, width, height);
+
+    // Weathering effects on background
+    drawWeatheringEffects(width, height);
 
     // Wall border
     ctx.strokeStyle = COLORS.wall;
@@ -257,6 +338,16 @@ function drawSearchBar(ctx, obj) {
         ctx.fillStyle = '#202124';
         ctx.fillRect(textX, -fontSize * 0.45, 1.5, fontSize * 0.9);
       }
+    } else if (obj.animatedPlaceholder) {
+      // Show animated placeholder with typing effect
+      ctx.fillStyle = '#5f6368';
+      ctx.fillText(obj.animatedPlaceholder, textX, 0);
+      // Blinking cursor at end of animated text
+      const textW = ctx.measureText(obj.animatedPlaceholder).width;
+      if (Math.floor(Date.now() / 530) % 2 === 0) {
+        ctx.fillStyle = '#5f6368';
+        ctx.fillRect(textX + textW + 2, -fontSize * 0.45, 1.5, fontSize * 0.9);
+      }
     } else {
       ctx.fillStyle = COLORS.searchBarText;
       ctx.fillText('Search Google or type a URL', textX, 0);
@@ -355,7 +446,17 @@ function drawFooterBar(ctx, obj) {
 }
 
 function drawGeminiIcon(ctx, obj) {
-  const r = obj.radius * SCALE;
+  // Don't draw if not visible yet
+  if (!obj.visible) return;
+
+  const baseR = obj.radius * SCALE;
+  // Apply flourish scale
+  const scale = obj.flourishScale !== undefined ? obj.flourishScale : 1;
+  const r = baseR * scale;
+
+  if (r <= 0) return;
+
+  ctx.save();
 
   // Bezier-eased spin when loading
   if (obj.loading) {
@@ -363,6 +464,25 @@ function drawGeminiIcon(ctx, obj) {
     const raw = (Date.now() % period) / period;
     const eased = raw < 0.5 ? 4 * raw * raw * raw : 1 - Math.pow(-2 * raw + 2, 3) / 2;
     ctx.rotate(eased * Math.PI * 2);
+  }
+
+  // Flourish sparkle effect during entrance
+  if (obj.flourishStartTime && obj.flourishScale < 1) {
+    const elapsed = Date.now() - obj.flourishStartTime;
+    const sparkleAlpha = Math.max(0, 1 - elapsed / 800);
+    if (sparkleAlpha > 0) {
+      // Draw expanding sparkle rings
+      ctx.globalAlpha = sparkleAlpha * 0.5;
+      for (let i = 1; i <= 3; i++) {
+        const ringR = r * (1 + i * 0.4 * (1 - sparkleAlpha));
+        ctx.beginPath();
+        ctx.arc(0, 0, ringR, 0, Math.PI * 2);
+        ctx.strokeStyle = i % 2 === 0 ? '#4285f4' : '#a259ff';
+        ctx.lineWidth = 3 - i * 0.5;
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
   }
 
   // Gemini sparkle: four-pointed star drawn with bezier curves
@@ -384,6 +504,110 @@ function drawGeminiIcon(ctx, obj) {
   ctx.quadraticCurveTo(-mid, -mid, 0, -tip);
   ctx.closePath();
   ctx.fill();
+
+  ctx.restore();
+
+  // Speech bubble (counter-rotate so it stays upright, drawn after restore)
+  if (obj.showSpeech && obj.speechText && scale >= 0.8) {
+    ctx.save();
+    ctx.rotate(-obj.body.getAngle());
+    drawGeminiSpeechBubble(ctx, obj.speechText, r);
+    ctx.restore();
+  }
+}
+
+function drawGeminiSpeechBubble(ctx, text, iconRadius) {
+  const maxWidth = 280;
+  const padding = 10;
+  const fontSize = 11;
+  const lineHeight = 14;
+  const tailH = 10;
+  const maxLines = 8; // Show more lines for regular text, truncate code after 5
+
+  // Check if this is code (starts with common code patterns)
+  const isCode = text.includes('function') || text.includes('const ') ||
+                 text.includes('let ') || text.includes('world.') ||
+                 text.includes('planck.') || text.includes('{');
+
+  ctx.font = isCode ? `${fontSize}px monospace` : `bold ${fontSize}px Arial, sans-serif`;
+
+  // Split by newlines first for code, then word wrap
+  let lines = [];
+  if (isCode) {
+    const codeLines = text.split('\n');
+    for (const line of codeLines) {
+      if (lines.length >= 5) {
+        lines.push('...');
+        break;
+      }
+      // Truncate long lines
+      const truncated = line.length > 40 ? line.substring(0, 37) + '...' : line;
+      lines.push(truncated);
+    }
+  } else {
+    // Word wrap for regular text
+    const words = text.split(' ');
+    let currentLine = '';
+    for (const word of words) {
+      const testLine = currentLine ? currentLine + ' ' + word : word;
+      if (ctx.measureText(testLine).width > maxWidth - padding * 2) {
+        if (currentLine) lines.push(currentLine);
+        currentLine = word;
+        if (lines.length >= maxLines) {
+          lines.push('...');
+          break;
+        }
+      } else {
+        currentLine = testLine;
+      }
+    }
+    if (currentLine && lines.length < maxLines) lines.push(currentLine);
+  }
+
+  // Calculate bubble dimensions
+  let bubbleW = padding * 2;
+  for (const line of lines) {
+    bubbleW = Math.max(bubbleW, ctx.measureText(line).width + padding * 2);
+  }
+  bubbleW = Math.min(bubbleW, maxWidth);
+  const bubbleH = lines.length * lineHeight + padding * 2;
+  const bubbleX = -bubbleW / 2;
+  const bubbleY = -iconRadius - bubbleH - tailH - 8;
+
+  // Bubble background with slight transparency for code
+  ctx.fillStyle = isCode ? '#1e1e1e' : '#ffffff';
+  ctx.strokeStyle = isCode ? '#4285f4' : '#000000';
+  ctx.lineWidth = 2;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.roundRect(bubbleX, bubbleY, bubbleW, bubbleH, 8);
+  ctx.fill();
+  ctx.stroke();
+
+  // Tail (triangle pointing down toward icon)
+  ctx.fillStyle = isCode ? '#1e1e1e' : '#ffffff';
+  ctx.strokeStyle = isCode ? '#4285f4' : '#000000';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-8, bubbleY + bubbleH);
+  ctx.lineTo(8, bubbleY + bubbleH);
+  ctx.lineTo(0, bubbleY + bubbleH + tailH);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Cover the tail join line
+  ctx.fillStyle = isCode ? '#1e1e1e' : '#ffffff';
+  ctx.fillRect(-7, bubbleY + bubbleH - 2, 14, 4);
+
+  // Text
+  ctx.fillStyle = isCode ? '#9cdcfe' : '#000000';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  for (let i = 0; i < lines.length; i++) {
+    ctx.fillText(lines[i], bubbleX + padding, bubbleY + padding + i * lineHeight);
+  }
+  ctx.textAlign = 'left';
 }
 
 function drawDino(ctx, obj) {

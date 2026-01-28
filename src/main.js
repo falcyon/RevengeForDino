@@ -58,6 +58,9 @@ async function handleSearch(text, searchBarBody) {
   geminiIcon.setLoading(true);
   overlay.showLoading(`Generating "${text}"...`);
 
+  // Stop animated placeholder when user starts searching
+  searchBar.stopAnimatedPlaceholder();
+
   try {
     // Normalize prompt via Gemini Flash → 1-2 word cache key
     const key = await normalizePrompt(text);
@@ -69,6 +72,8 @@ async function handleSearch(text, searchBarBody) {
       const spawnX = W * 0.75 + Math.random() * (W * 0.2);
       const spawnY = H * 0.25;
       executor.execute(cached, spawnX, spawnY);
+      // Show the cached code in Gemini's speech bubble
+      showCodeInSpeechBubble(cached);
       overlay.showSuccess(`Created "${text}"! (cached)`);
       return;
     }
@@ -81,6 +86,8 @@ async function handleSearch(text, searchBarBody) {
 
     executor.execute(code, spawnX, spawnY);
     cache.set(key, code);
+    // Show the generated code in Gemini's speech bubble
+    showCodeInSpeechBubble(code);
     overlay.showSuccess(`Created "${text}"!`);
   } catch (e) {
     console.error('Generation failed:', e);
@@ -90,6 +97,15 @@ async function handleSearch(text, searchBarBody) {
     searchBar.setLoading(false);
     geminiIcon.setLoading(false);
   }
+}
+
+// Show code in Gemini's speech bubble, then hide after a few seconds
+function showCodeInSpeechBubble(code) {
+  if (!geminiIcon.isVisible()) return;
+  geminiIcon.setSpeech(code);
+  setTimeout(() => {
+    geminiIcon.hideSpeech();
+  }, 6000);
 }
 
 // Google landing page elements (all start static, become dynamic on drag)
@@ -108,7 +124,7 @@ const renderer = createRenderer(canvas, getObjects, { jointDots: [] }, inputStat
 
 // --- Intro & Health Bar ---
 const healthBar = createHealthBar(canvas);
-const intro = createIntro(world, canvas, healthBar);
+const intro = createIntro(world, canvas, healthBar, geminiIcon, searchBar);
 
 // --- Combat system ---
 const gameState = createGameState(healthBar);
