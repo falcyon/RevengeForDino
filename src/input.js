@@ -14,6 +14,8 @@ export function setupInput(canvas, world) {
   let clickedBody = null;  // the body clicked on this press (for focus tracking)
   let cursorX = -100;
   let cursorY = -100;
+  let didDrag = false;     // true if mouse moved while pressed
+  let clickCallbacks = []; // { body, callback } pairs for click detection
 
   function toWorld(px, py) {
     return new planck.Vec2(px / SCALE, py / SCALE);
@@ -56,6 +58,7 @@ export function setupInput(canvas, world) {
 
   function onDown(px, py) {
     if (mouseJoint || pendingBody) return;
+    didDrag = false;
     const wp = toWorld(px, py);
     const body = findBodyAt(wp);
     if (!body) {
@@ -76,6 +79,7 @@ export function setupInput(canvas, world) {
   }
 
   function onMove(px, py) {
+    didDrag = true;
     // Promote pending static body to dynamic on first drag movement
     if (pendingBody) {
       pendingBody.setType('dynamic');
@@ -89,8 +93,19 @@ export function setupInput(canvas, world) {
   }
 
   function onUp() {
+    // Check for click (not drag) on registered bodies
+    if (clickedBody && !didDrag) {
+      for (const { body, callback } of clickCallbacks) {
+        if (clickedBody === body) {
+          callback();
+          break;
+        }
+      }
+    }
+
     pendingBody = null;
     pendingPoint = null;
+    clickedBody = null;
     if (!mouseJoint) return;
     world.destroyJoint(mouseJoint);
     mouseJoint = null;
@@ -108,10 +123,15 @@ export function setupInput(canvas, world) {
   canvas.addEventListener('touchmove',  (e) => { e.preventDefault(); onMove(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
   canvas.addEventListener('touchend',   (e) => { e.preventDefault(); onUp(); }, { passive: false });
 
+  function onClickBody(body, callback) {
+    clickCallbacks.push({ body, callback });
+  }
+
   // Expose for renderer
   return {
     getMouseTarget() { return mouseTarget; },
     getMouseJoint()  { return mouseJoint; },
     getCursorPos()   { return { x: cursorX, y: cursorY }; },
+    onClickBody,
   };
 }

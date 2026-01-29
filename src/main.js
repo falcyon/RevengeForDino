@@ -17,6 +17,7 @@ import { createCrash } from './combat/theCrash.js';
 import { createCrashRenderer } from './combat/crashRenderer.js';
 import { createCombatHUD } from './combat/combatHUD.js';
 import { CRASH_SPAWN_DELAY } from './combat/combatConstants.js';
+import { CURATED_OBJECTS } from './curatedCache.js';
 
 // --- Canvas setup ---
 const canvas = document.getElementById('c');
@@ -107,7 +108,7 @@ function showCodeInSpeechBubble(code) {
 }
 
 // Google landing page elements (all start static, become dynamic on drag)
-createGooglePage(world);
+const { luckyButton } = createGooglePage(world);
 const searchBar = createSearchBar(world, W * 0.5, H * 0.40, handleSearch);
 
 // --- Gemini icon ---
@@ -131,6 +132,21 @@ const combatHUD = createCombatHUD(canvas, gameState, geminiIcon, intro);
 
 // Wire up target provider to aim at The Crash's eye
 executor.setTargetProvider(() => crash.getEyePosition());
+
+// --- "I'm Feeling Lucky" button spawns random curated object ---
+inputState.onClickBody(luckyButton, () => {
+  if (!intro.isComplete()) return;
+  const keys = Object.keys(CURATED_OBJECTS);
+  const randomKey = keys[Math.floor(Math.random() * keys.length)];
+  const code = CURATED_OBJECTS[randomKey];
+  const spawnX = W * 0.75 + Math.random() * (W * 0.2);
+  const spawnY = H * 0.15;
+  executor.execute(code, spawnX, spawnY);
+  gameState.trackObjectCreated();
+  showCodeInSpeechBubble(code);
+  console.log('[Feeling Lucky]', randomKey);
+});
+
 let combatSpawnScheduled = false;
 let crashDestroyed = false;
 

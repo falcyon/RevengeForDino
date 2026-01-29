@@ -114,8 +114,10 @@ export function createGooglePage(world) {
     borderColor: '#dadce0',
   });
 
+  const luckyButton = createStaticBody(world, W / 2 + 15, H * 0.49, 12.5, 2.8, 10);
+  luckyButton.setUserData({ ...luckyButton.getUserData(), isLuckyButton: true });
   registerObject({
-    body: createStaticBody(world, W / 2 + 15, H * 0.49, 12.5, 2.8, 10),
+    body: luckyButton,
     type: 'button',
     hw: 12.5,
     hh: 2.8,
@@ -261,4 +263,6 @@ export function createGooglePage(world) {
       textColor: '#70757a',
     });
   }
+
+  return { luckyButton };
 }

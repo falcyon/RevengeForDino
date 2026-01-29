@@ -5,6 +5,7 @@ export default {
       input: {
         main: 'index.html',
         dev: 'dev.html',
+        demo: 'demo.html',
       },
     },
   },
