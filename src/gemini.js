@@ -9,29 +9,34 @@ const FALLBACK_URL =
 const FLASH_URL =
   `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
 
-const SYSTEM_PROMPT = `You generate planck.js code for a Box2D physics game. The objecctive of the game is to use the object you create to destroy the enemy. Return ONLY executable JS — no markdown, no comments, no blank lines.
+const SYSTEM_PROMPT = `You generate planck.js code for a Box2D physics game. The objective is to create objects that destroy the enemy. Return ONLY executable JS — no markdown, no comments, no blank lines.
 Machine-executed only. Maximize conciseness: single-letter vars, inline everything, only create a variable if referenced more than once.
 
-Available: planck, world, registerObject(obj), W, H, spawnX, spawnY
-Gravity: (0, 100), positive Y = down. World ~320×180m.
+Available: planck, world, registerObject(obj), W, H, spawnX, spawnY, getTarget()
+getTarget() returns {x,y} of enemy position for aiming. Use it for homing/aiming.
+Gravity: (0, 40), positive Y = down. World ~320×180m.
+AIMING TIP: Bullets drop due to gravity! For accurate hits, compensate: flightTime=dist/speed, drop=0.5*40*flightTime^2, aim at (target.y - drop).
+LEFT-FACING BARRELS: Since objects face LEFT, barrels should extend LEFT from pivot. For such barrels: (1) aiming angle = atan2(dy,dx) - Math.PI, (2) bullet velocity = (-cos(angle)*speed, -sin(angle)*speed), (3) spawn bullet from getWorldPoint with negative X offset.
 Register circles: registerObject({body,type:'circle',radius,color})
 Register rects: registerObject({body,type:'rect',hw,hh,color})
 Colors: hex strings. Use varied colors for different parts.
 Joints: RevoluteJoint, WeldJoint, DistanceJoint, PrismaticJoint
 For continuous behavior: return {update:function(){}} (called 60fps).
 Objects spawn RIGHT side, should FACE and MOVE LEFT.
+IMPORTANT - Densities: Use VERY LOW densities (0.5-1.5 typical, max 3). Projectiles should be especially light (density 1-2).
+IMPORTANT - Bullet velocities: Use moderate speeds (70-100 typical). Balance speed with physics feel.
 If input is gibberish: throw new Error("Cannot understand request");
-Be CREATIVE — use multiple bodies + joints. Don't just make a single shape. Also try to include things like bullets and other ephemeral objects. 
+Be CREATIVE — use multiple bodies + joints. Don't just make a single shape. Include bullets and projectiles if plausible.
 
 EXAMPLES:
 User: "ball"
-var b=world.createBody({type:'dynamic',position:planck.Vec2(spawnX,spawnY)});b.createFixture(planck.Circle(2),{density:2,friction:.3,restitution:.9});registerObject({body:b,type:'circle',radius:2,color:'#e94560'});
+var b=world.createBody({type:'dynamic',position:planck.Vec2(spawnX,spawnY)});b.createFixture(planck.Circle(2),{density:1.2,friction:.3,restitution:.9});registerObject({body:b,type:'circle',radius:2,color:'#e94560'});
 
 User: "car"
-var c=spawnX,d=spawnY,a=world.createBody({type:'dynamic',position:planck.Vec2(c,d)});a.createFixture(planck.Box(5,1.2),{density:2,friction:.3,restitution:.1});registerObject({body:a,type:'rect',hw:5,hh:1.2,color:'#e74c3c'});var b=world.createBody({type:'dynamic',position:planck.Vec2(c-.5,d-2)});b.createFixture(planck.Box(3,1),{density:.8,friction:.3,restitution:.1});registerObject({body:b,type:'rect',hw:3,hh:1,color:'#c0392b'});world.createJoint(new planck.WeldJoint({},a,b,planck.Vec2(c-.5,d-1.2)));var e=world.createBody({type:'dynamic',position:planck.Vec2(c-3.5,d+2)});e.createFixture(planck.Circle(1.3),{density:3,friction:.9,restitution:.05});registerObject({body:e,type:'circle',radius:1.3,color:'#2c3e50'});world.createJoint(new planck.RevoluteJoint({enableMotor:true,motorSpeed:20,maxMotorTorque:8000},a,e,planck.Vec2(c-3.5,d+2)));var f=world.createBody({type:'dynamic',position:planck.Vec2(c+3.5,d+2)});f.createFixture(planck.Circle(1.3),{density:3,friction:.9,restitution:.05});registerObject({body:f,type:'circle',radius:1.3,color:'#2c3e50'});world.createJoint(new planck.RevoluteJoint({enableMotor:true,motorSpeed:20,maxMotorTorque:8000},a,f,planck.Vec2(c+3.5,d+2)));
+var c=spawnX,d=spawnY,a=world.createBody({type:'dynamic',position:planck.Vec2(c,d)});a.createFixture(planck.Box(5,1.2),{density:1.2,friction:.3,restitution:.1});registerObject({body:a,type:'rect',hw:5,hh:1.2,color:'#e74c3c'});var b=world.createBody({type:'dynamic',position:planck.Vec2(c-.5,d-2)});b.createFixture(planck.Box(3,1),{density:.5,friction:.3,restitution:.1});registerObject({body:b,type:'rect',hw:3,hh:1,color:'#c0392b'});world.createJoint(new planck.WeldJoint({},a,b,planck.Vec2(c-.5,d-1.2)));var e=world.createBody({type:'dynamic',position:planck.Vec2(c-3.5,d+2)});e.createFixture(planck.Circle(1.3),{density:1.8,friction:.9,restitution:.05});registerObject({body:e,type:'circle',radius:1.3,color:'#2c3e50'});world.createJoint(new planck.RevoluteJoint({enableMotor:true,motorSpeed:20,maxMotorTorque:4000},a,e,planck.Vec2(c-3.5,d+2)));var f=world.createBody({type:'dynamic',position:planck.Vec2(c+3.5,d+2)});f.createFixture(planck.Circle(1.3),{density:1.8,friction:.9,restitution:.05});registerObject({body:f,type:'circle',radius:1.3,color:'#2c3e50'});world.createJoint(new planck.RevoluteJoint({enableMotor:true,motorSpeed:20,maxMotorTorque:4000},a,f,planck.Vec2(c+3.5,d+2)));
 
-User: "turret"
-var c=spawnX,d=spawnY,a=world.createBody({type:'dynamic',position:planck.Vec2(c,d)});a.createFixture(planck.Box(3,2),{density:8,friction:.7,restitution:.05});registerObject({body:a,type:'rect',hw:3,hh:2,color:'#556b2f'});var b=world.createBody({type:'dynamic',position:planck.Vec2(c,d-4.5)});b.createFixture(planck.Box(.6,3),{density:3,friction:.3,restitution:.1});registerObject({body:b,type:'rect',hw:.6,hh:3,color:'#3b3b3b'});var j=world.createJoint(new planck.RevoluteJoint({enableMotor:true,motorSpeed:0,maxMotorTorque:20000,enableLimit:true,lowerAngle:-1.2,upperAngle:1.2},a,b,planck.Vec2(c,d-2))),t=0,s=1;return{update:function(){var g=j.getJointAngle();if(g>1)s=-1;if(g<-1)s=1;j.setMotorSpeed(s*2);if(--t<=0){t=45;var p=b.getPosition(),r=b.getAngle(),x=p.x-Math.sin(r)*4,y=p.y-Math.cos(r)*4,u=world.createBody({type:'dynamic',position:planck.Vec2(x,y),bullet:true});u.createFixture(planck.Circle(.35),{density:10,friction:.2,restitution:.3});u.setLinearVelocity(planck.Vec2(-Math.sin(r)*120,-Math.cos(r)*120));registerObject({body:u,type:'circle',radius:.35,color:'#ffd700'});}}};
+User: "tank"
+var c=spawnX,d=spawnY,G=40,SPD=80,a=world.createBody({type:'dynamic',position:planck.Vec2(c,d)});a.createFixture(planck.Box(5,1.5),{density:1.8,friction:.5});registerObject({body:a,type:'rect',hw:5,hh:1.5,color:'#4a5d23'});var wOpts={enableMotor:true,motorSpeed:-8,maxMotorTorque:1800};[-3.5,0,3.5].forEach(function(o){var wh=world.createBody({type:'dynamic',position:planck.Vec2(c+o,d+2.2)});wh.createFixture(planck.Circle(1.3),{density:1.2,friction:1.5});registerObject({body:wh,type:'circle',radius:1.3,color:'#2d2d2d'});world.createJoint(new planck.RevoluteJoint(wOpts,a,wh,wh.getPosition()))});var tb=world.createBody({type:'dynamic',position:planck.Vec2(c-1,d-2.2)});tb.createFixture(planck.Box(2,.8),{density:0.6});registerObject({body:tb,type:'rect',hw:2,hh:.8,color:'#3d4a1f'});world.createJoint(new planck.WeldJoint({},a,tb,planck.Vec2(c-1,d-1.5)));var br=world.createBody({type:'dynamic',position:planck.Vec2(c-4,d-2.2)});br.createFixture(planck.Box(3,.35),{density:.3});registerObject({body:br,type:'rect',hw:3,hh:.35,color:'#2a3515'});var tj=world.createJoint(new planck.RevoluteJoint({enableMotor:true,maxMotorTorque:500,motorSpeed:0},tb,br,planck.Vec2(c-1,d-2.2))),t=0;return{update:function(){t++;var tg=getTarget();if(tg){var bp=br.getPosition(),dx=tg.x-bp.x,dy=tg.y-bp.y,dist=Math.sqrt(dx*dx+dy*dy),ft=dist/SPD,drop=0.5*G*ft*ft,ang=Math.atan2(tg.y-drop-bp.y,dx)-Math.PI,cur=br.getAngle(),diff=ang-cur;while(diff>Math.PI)diff-=2*Math.PI;while(diff<-Math.PI)diff+=2*Math.PI;tj.setMotorSpeed(diff*5)}if(t%60==0){var ba=br.getAngle(),tip=br.getWorldPoint(planck.Vec2(-3,0)),bl=world.createBody({type:'dynamic',position:tip,bullet:true});bl.createFixture(planck.Circle(.5),{density:1.5,restitution:.2});bl.setLinearVelocity(planck.Vec2(-Math.cos(ba)*SPD,-Math.sin(ba)*SPD));registerObject({body:bl,type:'circle',radius:.5,color:'#e74c3c'})}}};
 
 User: "asdfghjk"
 throw new Error("Cannot understand request");
@@ -53,10 +58,12 @@ async function fetchWithTimeout(url, options, timeout = FETCH_TIMEOUT) {
 }
 
 async function fetchWithRetry(url, options) {
+  let lastStatus = null;
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
       const response = await fetchWithTimeout(url, options);
       if (response.ok) return response;
+      lastStatus = response.status;
       if (response.status === 503 || response.status === 429) {
         console.warn(`API overloaded (${response.status}), retry ${attempt + 1}/${MAX_RETRIES}...`);
         await new Promise(r => setTimeout(r, RETRY_DELAY * (attempt + 1)));
@@ -72,7 +79,14 @@ async function fetchWithRetry(url, options) {
       throw e;
     }
   }
-  return fetchWithTimeout(url, options); // final attempt
+  // After all retries exhausted for 503/429, throw a clear error
+  if (lastStatus === 503 || lastStatus === 429) {
+    const msg = lastStatus === 429
+      ? 'Gemini API rate limit exceeded. Try again in a moment.'
+      : 'Gemini API is overloaded. Try again in a moment.';
+    throw new Error(msg);
+  }
+  return fetchWithTimeout(url, options); // final attempt for other cases
 }
 
 const conversationHistory = [];
@@ -97,7 +111,8 @@ function stripCodeFences(text) {
 // Known curated cache keys - normalizer should prefer these exact terms
 const CURATED_KEYS = [
   'catapult', 'helicopter', 'rain', 'cloud', 'train', 'tank', 'ball', 'car',
-  'cannon', 'rocket', 'bomb', 'boulder', 'missile', 'turret', 'wrecking ball', 'meteor'
+  'cannon', 'rocket', 'bomb', 'boulder', 'missile', 'turret', 'wrecking ball', 'meteor',
+  'butterfly', 'robot', 'virus'
 ];
 
 /**
@@ -115,16 +130,20 @@ export async function normalizePrompt(userPrompt) {
         role: 'user',
         parts: [{ text: `Reduce this to a 1-2 word object name. Lowercase, no punctuation. Reply with ONLY the word(s), nothing else.
 
-IMPORTANT: If the input matches or is a synonym/typo of any of these known keys, return that EXACT key: ${keysList}
+If the input is a TYPO or DIRECT SYNONYM of one of these keys, return that key: ${keysList}
+Otherwise, return the actual object name the user asked for.
 
-Examples:
-- "trian" → "train" (typo correction)
-- "locomotive" → "train" (synonym)
-- "railcar" → "train" (synonym)
-- "chopper" → "helicopter" (synonym)
-- "heli" → "helicopter" (synonym)
-- "armored vehicle" → "tank" (synonym)
-- "something that rains" → "rain"
+ONLY map to curated keys for true equivalents:
+- "trian" → "train" (typo)
+- "locomotive" → "train" (same thing)
+- "chopper" → "helicopter" (same thing)
+- "heli" → "helicopter" (abbreviation)
+- "armored vehicle" → "tank" (same thing)
+
+Do NOT force unrelated things to curated keys:
+- "butterfly" → "butterfly" (NOT "ball")
+- "dragon" → "dragon" (NOT any curated key)
+- "spaceship" → "spaceship" (NOT "rocket")
 
 "${userPrompt}"` }],
       }],
@@ -187,6 +206,13 @@ export async function generateObject(userPrompt) {
 
   if (!response.ok) {
     conversationHistory.pop();
+    // Provide user-friendly error messages for common API issues
+    if (response.status === 429) {
+      throw new Error('Gemini API rate limit exceeded. Try again in a moment.');
+    }
+    if (response.status === 503) {
+      throw new Error('Gemini API is overloaded. Try again in a moment.');
+    }
     const err = await response.text();
     throw new Error(`Gemini API error (${response.status}): ${err}`);
   }

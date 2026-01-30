@@ -14,7 +14,7 @@ export const VOID_BODY_RADIUS = 2;            // meters — tiny sensor body
 export const EYE_RADIUS_FRAC = 0.2;           // eye radius = visual radius * this (grows with orb)
 export const EYE_MIN_RADIUS = 3;              // meters — minimum eye size
 export const EYE_RESTITUTION = 0.8;           // objects bounce off the eye
-export const EYE_MOMENTUM_SCALE = 0.005;       // damage = momentum * this
+export const EYE_MOMENTUM_SCALE = 0.01;       // damage = momentum * this
 export const EYE_ROAM_SPEED = 0.3;            // radians/sec — how fast the eye drifts along the edge
 
 // Suction (inverse-square: force = strength / dist^2)
