@@ -150,8 +150,19 @@ const crash = createCrash(world, gameState, healthBar, W, H, geminiIcon);
 const crashRenderer = createCrashRenderer(canvas, crash, gameState, world);
 const combatHUD = createCombatHUD(canvas, gameState, geminiIcon, intro, searchBar, world, crash, executor);
 
-// Wire up target provider to aim at The Crash's eye
-executor.setTargetProvider(() => crash.getEyePosition());
+// Wire up target provider to aim at The Crash's eye, or center-bottom in playground mode
+executor.setTargetProvider(() => {
+  const state = gameState.getState();
+  // In victory/defeat (playground mode), use center of screen as target
+  if (state === 'victory' || state === 'defeat') {
+    return { x: W * 0.5, y: H * 0.7 };
+  }
+  // During combat, aim at The Crash's eye
+  const eyePos = crash.getEyePosition();
+  if (eyePos) return eyePos;
+  // Fallback
+  return { x: W * 0.5, y: H * 0.7 };
+});
 
 // Wire up screen shake from The Crash and intro to the renderer
 renderer.setShakeProvider((dt) => {
@@ -210,17 +221,15 @@ function loop() {
   }
 
   // Run all updaters from generated objects (with auto-removal on error)
-  // Skip in victory/defeat states to stop all spawned object behavior
-  if (state !== 'defeat' && state !== 'victory') {
-    const updaters = executor.getUpdaters();
-    for (let i = updaters.length - 1; i >= 0; i--) {
-      try {
-        updaters[i].update();
-        if (updaters[i].dead) updaters.splice(i, 1);
-      } catch (e) {
-        console.warn('Updater error, removing:', e);
-        updaters.splice(i, 1);
-      }
+  // Note: clearAll() is called on game over, so new playground spawns still work
+  const updaters = executor.getUpdaters();
+  for (let i = updaters.length - 1; i >= 0; i--) {
+    try {
+      updaters[i].update();
+      if (updaters[i].dead) updaters.splice(i, 1);
+    } catch (e) {
+      console.warn('Updater error, removing:', e);
+      updaters.splice(i, 1);
     }
   }
 

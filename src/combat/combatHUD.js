@@ -292,35 +292,28 @@ export function createCombatHUD(canvas, gameState, geminiIcon, intro, searchBar,
     playAgainButtonCreated = true;
 
     const W = canvas.width / SCALE;
+    const H = canvas.height / SCALE;
     const btnHW = 10;
     const btnHH = 2.5;
 
-    // Position below search bar if available, otherwise center
+    // Position below search bar
     let btnX = W / 2;
-    let btnY = -btnHH * 2; // Just above screen top
+    let btnY;
 
-    if (isVictory && searchBar?.body) {
+    if (searchBar?.body) {
       const pos = searchBar.body.getPosition();
       btnX = pos.x;
       btnY = pos.y + 8;
-
-      // Static button for victory (below search bar)
-      playAgainBody = world.createBody({
-        type: 'static',
-        position: new planck.Vec2(btnX, btnY),
-      });
-      playAgainBody.setUserData({ draggable: true });
     } else {
-      // Dynamic falling button for defeat
-      playAgainBody = world.createBody({
-        type: 'dynamic',
-        position: new planck.Vec2(btnX, btnY),
-        angularDamping: 2.0,
-        linearDamping: 0.3,
-      });
-      // Give it initial velocity to fall in quickly
-      playAgainBody.setLinearVelocity(new planck.Vec2(0, 25));
+      btnY = H * 0.55; // Fallback: center of screen
     }
+
+    // Both victory and defeat buttons are static below search bar
+    playAgainBody = world.createBody({
+      type: 'static',
+      position: new planck.Vec2(btnX, btnY),
+    });
+    playAgainBody.setUserData({ draggable: true });
 
     playAgainBody.createFixture(new planck.Box(btnHW, btnHH), {
       density: 0.4,
