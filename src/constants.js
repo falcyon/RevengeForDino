@@ -1,5 +1,5 @@
 // Debug mode — toggle hitboxes, mass labels, suction lines
-export const DEBUG = false;
+export const DEBUG = true;
 
 // Pixels per meter — controls how large the physics world appears on screen
 export const SCALE = 6;

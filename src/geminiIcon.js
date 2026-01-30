@@ -68,6 +68,14 @@ export function createGeminiIcon(world, canvas) {
   const OFFSET_Y = -12;
   const FOLLOW_STRENGTH = 1;
 
+  // FlyTo animation state
+  let flyTarget = null;
+  let flyCallback = null;
+  const FLY_SPEED = 12; // velocity multiplier for flying to target
+
+  // Hold position state (keeps Gemini in place, ignoring mouse)
+  let holdPosition = null;
+
   // Idle floating motion — gentle figure-8-ish bob
   let t = 0;
   const BOB_AMP_X = 1.8;  // meters of horizontal sway
@@ -131,6 +139,41 @@ export function createGeminiIcon(world, canvas) {
       }
     }
 
+    // FlyTo animation - move to specific target position
+    if (flyTarget) {
+      const pos = body.getPosition();
+      const dx = flyTarget.x - pos.x;
+      const dy = flyTarget.y - pos.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < 1.5) {
+        // Arrived at target - hold this position
+        holdPosition = { x: flyTarget.x, y: flyTarget.y };
+        flyTarget = null;
+        if (flyCallback) {
+          const cb = flyCallback;
+          flyCallback = null;
+          cb();
+        }
+      } else {
+        // Fly toward target
+        body.setLinearVelocity(new planck.Vec2(dx * FLY_SPEED, dy * FLY_SPEED));
+        return;
+      }
+    }
+
+    // Hold position - stay at fixed location, ignore mouse
+    if (holdPosition) {
+      const pos = body.getPosition();
+      const dx = holdPosition.x - pos.x;
+      const dy = holdPosition.y - pos.y;
+      // Gently stay in place with slight bob
+      const bobX = Math.sin(t * BOB_FREQ_X * Math.PI * 2) * BOB_AMP_X * 0.3;
+      const bobY = Math.sin(t * BOB_FREQ_Y * Math.PI * 2) * BOB_AMP_Y * 0.3;
+      body.setLinearVelocity(new planck.Vec2((dx + bobX) * 2, (dy + bobY) * 2));
+      return;
+    }
+
     const bobX = Math.sin(t * BOB_FREQ_X * Math.PI * 2) * BOB_AMP_X;
     const bobY = Math.sin(t * BOB_FREQ_Y * Math.PI * 2) * BOB_AMP_Y;
 
@@ -173,6 +216,32 @@ export function createGeminiIcon(world, canvas) {
     obj.speechText = '';
   }
 
+  /**
+   * Fly to a specific world position, then call callback when arrived.
+   * @param {number} x - World X coordinate
+   * @param {number} y - World Y coordinate
+   * @param {Function} [callback] - Called when Gemini arrives at the position
+   */
+  function flyTo(x, y, callback) {
+    flyTarget = { x, y };
+    flyCallback = callback || null;
+  }
+
+  /**
+   * Cancel any in-progress flyTo animation
+   */
+  function cancelFlyTo() {
+    flyTarget = null;
+    flyCallback = null;
+  }
+
+  /**
+   * Release hold position, allowing Gemini to follow mouse again
+   */
+  function releaseHold() {
+    holdPosition = null;
+  }
+
   return {
     body,
     obj,
@@ -181,6 +250,9 @@ export function createGeminiIcon(world, canvas) {
     appear,
     setSpeech,
     hideSpeech,
+    flyTo,
+    cancelFlyTo,
+    releaseHold,
     isVisible() { return obj.visible; },
   };
 }

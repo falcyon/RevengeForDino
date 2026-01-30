@@ -95,6 +95,11 @@ export function createCrash(world, gameState, healthBar, W, H) {
     if (ud?.isCursor || ud?.isGeminiIcon || ud?.isCrash || ud?.isEphemeral) return;
     if (otherBody.getType() === 'static') return;
 
+    // Mark as consumed immediately so updaters stop
+    const ud2 = otherBody.getUserData() || {};
+    ud2.isConsumed = true;
+    otherBody.setUserData(ud2);
+
     // Schedule destruction (can't destroy during contact callback)
     scheduledDestroys.push(otherBody);
     gameState.trackObjectConsumed();
@@ -120,6 +125,11 @@ export function createCrash(world, gameState, healthBar, W, H) {
       healthBar.takeDamage(damage);
       gameState.triggerDamageFlash();
       gameState.trackDamage(damage);
+    }
+
+    // Destroy ephemeral objects (bullets, particles) on eye contact
+    if (ud?.isEphemeral) {
+      scheduledDestroys.push(otherBody);
     }
   }
 

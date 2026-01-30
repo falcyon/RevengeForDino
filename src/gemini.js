@@ -90,18 +90,39 @@ function stripCodeFences(text) {
   return lines.slice(startIdx).join('\n').trim();
 }
 
+// Known curated cache keys - normalizer should prefer these exact terms
+const CURATED_KEYS = [
+  'catapult', 'helicopter', 'rain', 'cloud', 'train', 'tank', 'ball', 'car',
+  'cannon', 'rocket', 'bomb', 'boulder', 'missile', 'turret', 'wrecking ball', 'meteor'
+];
+
 /**
  * Cheap Gemini Flash call to normalize any user prompt into a 1-2 word
  * lowercase cache key (e.g. "give me something that creates rain" → "rain").
+ * Prefers curated cache keys when the input matches or is a synonym.
  */
 export async function normalizePrompt(userPrompt) {
+  const keysList = CURATED_KEYS.join(', ');
   const response = await fetchWithRetry(FLASH_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{
         role: 'user',
-        parts: [{ text: `Reduce this to a 1-2 word object name. Lowercase, no punctuation. Reply with ONLY the word(s), nothing else.\n\n"${userPrompt}"` }],
+        parts: [{ text: `Reduce this to a 1-2 word object name. Lowercase, no punctuation. Reply with ONLY the word(s), nothing else.
+
+IMPORTANT: If the input matches or is a synonym/typo of any of these known keys, return that EXACT key: ${keysList}
+
+Examples:
+- "trian" → "train" (typo correction)
+- "locomotive" → "train" (synonym)
+- "railcar" → "train" (synonym)
+- "chopper" → "helicopter" (synonym)
+- "heli" → "helicopter" (synonym)
+- "armored vehicle" → "tank" (synonym)
+- "something that rains" → "rain"
+
+"${userPrompt}"` }],
       }],
       generationConfig: { temperature: 0, maxOutputTokens: 16 },
     }),

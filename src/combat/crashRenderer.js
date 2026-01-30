@@ -250,10 +250,10 @@ export function createCrashRenderer(canvas, crash, gameState, world) {
       return;
     }
 
-    // --- Screen corruption (when large) ---
-    if (radius > CRASH_INITIAL_RADIUS * 2) {
-      drawScreenCorruption(pr);
-    }
+    // --- Screen corruption (disabled for now) ---
+    // if (radius > CRASH_INITIAL_RADIUS * 2) {
+    //   drawScreenCorruption(pr);
+    // }
 
     // --- Void visual (dark circle with glitch edge) ---
     drawVoidBody(px, py, pr);

@@ -17,11 +17,11 @@ export function createCombatHUD(canvas, gameState, geminiIcon, intro) {
     if (confettiInitialized) return;
     confettiInitialized = true;
 
-    const colors = ['#4285f4', '#ea4335', '#fbbc04', '#34a853', '#ff6d01', '#46bdc6'];
-    for (let i = 0; i < 150; i++) {
+    const colors = ['#0F9D58', '#F4B400', '#4285F4', '#DB4437'];
+    for (let i = 0; i < 20; i++) {
       confetti.push({
         x: Math.random() * canvas.width,
-        y: -20 - Math.random() * 500,
+        y: -20 - Math.random() * 1000,
         vx: (Math.random() - 0.5) * 4,
         vy: 2 + Math.random() * 4,
         size: 6 + Math.random() * 10,
@@ -38,7 +38,7 @@ export function createCombatHUD(canvas, gameState, geminiIcon, intro) {
       c.x += c.vx;
       c.y += c.vy;
       c.vy += 0.1; // gravity
-      c.vy = Math.min(c.vy, 8); // terminal velocity
+      c.vy = Math.min(c.vy, 2); // terminal velocity
       c.rotation += c.rotationSpeed;
 
       // Wobble
@@ -49,7 +49,7 @@ export function createCombatHUD(canvas, gameState, geminiIcon, intro) {
       if (c.y > canvas.height + 20) {
         c.y = -20;
         c.x = Math.random() * canvas.width;
-        c.vy = 2 + Math.random() * 4;
+        c.vy = 0.1 + Math.random() ;
       }
     }
   }

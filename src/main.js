@@ -68,26 +68,18 @@ async function handleSearch(text, searchBarBody) {
     // Check cache (localStorage L1, then Firebase L2)
     const cached = await cache.get(key);
     if (cached) {
-      const spawnX = W * 0.75 + Math.random() * (W * 0.2);
-      const spawnY = H * 0.25;
-      executor.execute(cached, spawnX, spawnY);
+      // Spawn below Gemini's current position
+      await animateGeminiSpawn(cached);
       gameState.trackObjectCreated();
-      // Show the cached code in Gemini's speech bubble
-      showCodeInSpeechBubble(cached);
       return;
     }
 
     const { code } = await generateObject(text);
 
-    // Spawn at the top-right area of the world
-    const spawnX = W * 0.75 + Math.random() * (W * 0.2);
-    const spawnY = H * 0.15;
-
-    executor.execute(code, spawnX, spawnY);
+    // Spawn below Gemini's current position
+    await animateGeminiSpawn(code);
     gameState.trackObjectCreated();
     cache.set(key, code);
-    // Show the generated code in Gemini's speech bubble
-    showCodeInSpeechBubble(code);
   } catch (e) {
     console.error('Generation failed:', e);
     overlay.showError(e.message);
@@ -98,13 +90,41 @@ async function handleSearch(text, searchBarBody) {
   }
 }
 
-// Show code in Gemini's speech bubble, then hide after a few seconds
-function showCodeInSpeechBubble(code) {
-  if (!geminiIcon.isVisible()) return;
-  geminiIcon.setSpeech(code);
-  setTimeout(() => {
-    geminiIcon.hideSpeech();
-  }, 6000);
+/**
+ * Gemini shows code, waits, then spawns object below its current position.
+ * @param {string} code - The code to execute
+ * @returns {Promise} - Resolves when animation completes and object is spawned
+ */
+function animateGeminiSpawn(code) {
+  return new Promise((resolve) => {
+    // Get Gemini's current position - spawn below it
+    const geminiPos = geminiIcon.body.getPosition();
+    const spawnX = geminiPos.x;
+    const spawnY = geminiPos.y + 8; // Spawn 8 meters below Gemini
+
+    if (!geminiIcon.isVisible()) {
+      // If Gemini isn't visible, just spawn immediately at default location
+      executor.execute(code, W * 0.5, H * 0.3);
+      resolve();
+      return;
+    }
+
+    // Show code in speech bubble
+    geminiIcon.setSpeech(code);
+
+    // Wait 2 seconds, then spawn the object
+    setTimeout(() => {
+      // Get position again in case Gemini moved
+      const pos = geminiIcon.body.getPosition();
+      executor.execute(code, pos.x, pos.y + 8);
+
+      // Hide speech bubble 3 seconds after spawn (5 total)
+      setTimeout(() => {
+        geminiIcon.hideSpeech();
+        resolve();
+      }, 3000);
+    }, 2000);
+  });
 }
 
 // Google landing page elements (all start static, become dynamic on drag)
@@ -134,17 +154,22 @@ const combatHUD = createCombatHUD(canvas, gameState, geminiIcon, intro);
 executor.setTargetProvider(() => crash.getEyePosition());
 
 // --- "I'm Feeling Lucky" button spawns random curated object ---
-inputState.onClickBody(luckyButton, () => {
+let luckyAnimating = false;
+inputState.onClickBody(luckyButton, async () => {
   if (!intro.isComplete()) return;
+  if (luckyAnimating) return;
+  luckyAnimating = true;
+
   const keys = Object.keys(CURATED_OBJECTS);
   const randomKey = keys[Math.floor(Math.random() * keys.length)];
   const code = CURATED_OBJECTS[randomKey];
-  const spawnX = W * 0.75 + Math.random() * (W * 0.2);
-  const spawnY = H * 0.15;
-  executor.execute(code, spawnX, spawnY);
+
+  // Spawn below Gemini's current position
+  await animateGeminiSpawn(code);
   gameState.trackObjectCreated();
-  showCodeInSpeechBubble(code);
   console.log('[Feeling Lucky]', randomKey);
+
+  luckyAnimating = false;
 });
 
 let combatSpawnScheduled = false;

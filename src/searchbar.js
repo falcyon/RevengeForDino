@@ -5,7 +5,7 @@ import { registerObject } from './objects.js';
 // Dimensions in meters (half-sizes)
 const HW = 40;
 const HH = 3;
-const MASS = 6;
+const MASS = 10;
 
 // Animated placeholder suggestions
 const PLACEHOLDER_SUGGESTIONS = [

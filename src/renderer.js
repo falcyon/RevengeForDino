@@ -1,4 +1,5 @@
 import { SCALE, COLORS, DEBUG } from './constants.js';
+import { drawSpeechBubble } from './speechBubble.js';
 
 /**
  * Creates the renderer that draws the physics scene onto a canvas each frame.
@@ -97,8 +98,8 @@ export function createRenderer(canvas, getObjects, sceneRefs, inputState) {
     ctx.fillStyle = COLORS.background;
     ctx.fillRect(0, 0, width, height);
 
-    // Weathering effects on background
-    drawWeatheringEffects(width, height);
+    // Weathering effects on background (disabled for now)
+    // drawWeatheringEffects(width, height);
 
     // Wall border
     ctx.strokeStyle = COLORS.wall;
@@ -120,6 +121,11 @@ export function createRenderer(canvas, getObjects, sceneRefs, inputState) {
     const objects = getObjects();
     for (let i = 0; i < objects.length; i++) {
       const obj = objects[i];
+
+      // Skip objects with invalid or destroyed bodies
+      if (!obj.body || typeof obj.body.getAngle !== 'function') {
+        continue;
+      }
 
       const pos = obj.body.getPosition();
       const angle = obj.body.getAngle();
@@ -530,103 +536,16 @@ function drawGeminiIcon(ctx, obj) {
   if (obj.showSpeech && obj.speechText && scale >= 0.8) {
     ctx.save();
     ctx.rotate(-obj.body.getAngle());
-    drawGeminiSpeechBubble(ctx, obj.speechText, r);
+    drawSpeechBubble(ctx, {
+      text: obj.speechText,
+      anchorX: 0,
+      anchorY: -r,
+      maxWidth: 280,
+      theme: 'auto',
+      tailDirection: 'down',
+    });
     ctx.restore();
   }
-}
-
-function drawGeminiSpeechBubble(ctx, text, iconRadius) {
-  const maxWidth = 280;
-  const padding = 10;
-  const fontSize = 11;
-  const lineHeight = 14;
-  const tailH = 10;
-  const maxLines = 8; // Show more lines for regular text, truncate code after 5
-
-  // Check if this is code (starts with common code patterns)
-  const isCode = text.includes('function') || text.includes('const ') ||
-                 text.includes('let ') || text.includes('world.') ||
-                 text.includes('planck.') || text.includes('{');
-
-  ctx.font = isCode ? `${fontSize}px monospace` : `bold ${fontSize}px Arial, sans-serif`;
-
-  // Split by newlines first for code, then word wrap
-  let lines = [];
-  if (isCode) {
-    const codeLines = text.split('\n');
-    for (const line of codeLines) {
-      if (lines.length >= 5) {
-        lines.push('...');
-        break;
-      }
-      // Truncate long lines
-      const truncated = line.length > 40 ? line.substring(0, 37) + '...' : line;
-      lines.push(truncated);
-    }
-  } else {
-    // Word wrap for regular text
-    const words = text.split(' ');
-    let currentLine = '';
-    for (const word of words) {
-      const testLine = currentLine ? currentLine + ' ' + word : word;
-      if (ctx.measureText(testLine).width > maxWidth - padding * 2) {
-        if (currentLine) lines.push(currentLine);
-        currentLine = word;
-        if (lines.length >= maxLines) {
-          lines.push('...');
-          break;
-        }
-      } else {
-        currentLine = testLine;
-      }
-    }
-    if (currentLine && lines.length < maxLines) lines.push(currentLine);
-  }
-
-  // Calculate bubble dimensions
-  let bubbleW = padding * 2;
-  for (const line of lines) {
-    bubbleW = Math.max(bubbleW, ctx.measureText(line).width + padding * 2);
-  }
-  bubbleW = Math.min(bubbleW, maxWidth);
-  const bubbleH = lines.length * lineHeight + padding * 2;
-  const bubbleX = -bubbleW / 2;
-  const bubbleY = -iconRadius - bubbleH - tailH - 8;
-
-  // Bubble background with slight transparency for code
-  ctx.fillStyle = isCode ? '#1e1e1e' : '#ffffff';
-  ctx.strokeStyle = isCode ? '#4285f4' : '#000000';
-  ctx.lineWidth = 2;
-  ctx.lineJoin = 'round';
-  ctx.beginPath();
-  ctx.roundRect(bubbleX, bubbleY, bubbleW, bubbleH, 8);
-  ctx.fill();
-  ctx.stroke();
-
-  // Tail (triangle pointing down toward icon)
-  ctx.fillStyle = isCode ? '#1e1e1e' : '#ffffff';
-  ctx.strokeStyle = isCode ? '#4285f4' : '#000000';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(-8, bubbleY + bubbleH);
-  ctx.lineTo(8, bubbleY + bubbleH);
-  ctx.lineTo(0, bubbleY + bubbleH + tailH);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
-  // Cover the tail join line
-  ctx.fillStyle = isCode ? '#1e1e1e' : '#ffffff';
-  ctx.fillRect(-7, bubbleY + bubbleH - 2, 14, 4);
-
-  // Text
-  ctx.fillStyle = isCode ? '#9cdcfe' : '#000000';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-  for (let i = 0; i < lines.length; i++) {
-    ctx.fillText(lines[i], bubbleX + padding, bubbleY + padding + i * lineHeight);
-  }
-  ctx.textAlign = 'left';
 }
 
 function drawDino(ctx, obj) {
@@ -648,74 +567,16 @@ function drawDino(ctx, obj) {
   if (obj.showSpeech && obj.speechText) {
     ctx.save();
     ctx.rotate(-obj.body.getAngle());
-    drawSpeechBubble(ctx, obj.speechText, dh);
+    drawSpeechBubble(ctx, {
+      text: obj.speechText,
+      anchorX: 0,
+      anchorY: -dh / 2,
+      maxWidth: 220,
+      theme: 'light',
+      tailDirection: 'down',
+    });
     ctx.restore();
   }
-}
-
-function drawSpeechBubble(ctx, text, spriteHeight) {
-  const maxWidth = 220;
-  const padding = 10;
-  const fontSize = 12;
-  const lineHeight = 16;
-  const tailH = 10;
-
-  ctx.font = `bold ${fontSize}px Arial, sans-serif`;
-
-  // Word wrap
-  const words = text.split(' ');
-  const lines = [];
-  let currentLine = '';
-  for (const word of words) {
-    const testLine = currentLine ? currentLine + ' ' + word : word;
-    if (ctx.measureText(testLine).width > maxWidth - padding * 2) {
-      if (currentLine) lines.push(currentLine);
-      currentLine = word;
-    } else {
-      currentLine = testLine;
-    }
-  }
-  if (currentLine) lines.push(currentLine);
-
-  const bubbleW = maxWidth;
-  const bubbleH = lines.length * lineHeight + padding * 2;
-  const bubbleX = -bubbleW / 2;
-  const bubbleY = -spriteHeight / 2 - bubbleH - tailH - 5;
-
-  // Bubble background
-  ctx.fillStyle = '#ffffff';
-  ctx.strokeStyle = '#000000';
-  ctx.lineWidth = 2;
-  ctx.lineJoin = 'round';
-  ctx.beginPath();
-  ctx.roundRect(bubbleX, bubbleY, bubbleW, bubbleH, 8);
-  ctx.fill();
-  ctx.stroke();
-
-  // Tail (triangle pointing down toward dino)
-  ctx.fillStyle = '#ffffff';
-  ctx.strokeStyle = '#000000';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(-8, bubbleY + bubbleH);
-  ctx.lineTo(8, bubbleY + bubbleH);
-  ctx.lineTo(0, bubbleY + bubbleH + tailH);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
-  // Cover the tail join line with white
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(-7, bubbleY + bubbleH - 2, 14, 4);
-
-  // Text
-  ctx.fillStyle = '#000000';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-  for (let i = 0; i < lines.length; i++) {
-    ctx.fillText(lines[i], bubbleX + padding, bubbleY + padding + i * lineHeight);
-  }
-  ctx.textAlign = 'left';
 }
 
 function drawMassLabel(ctx, obj) {

@@ -70,13 +70,33 @@ export function createExecutor(world) {
         dead: false,
         rootBodies,
         update() {
-          // Stop if all root bodies have been destroyed
-          if (rootBodies.length > 0 && rootBodies.every(b => !b.isActive())) {
-            this.dead = true;
-            return;
+          // Stop if ANY root body has been destroyed or consumed
+          // Use try-catch because destroyed bodies may throw when accessed
+          if (rootBodies.length > 0) {
+            const anyDeadOrConsumed = rootBodies.some(b => {
+              try {
+                // Check if body is consumed (marked by The Crash)
+                const ud = b.getUserData();
+                if (ud?.isConsumed) return true;
+                // Check if body is still in the world (getWorld returns null after destroy)
+                return !b.getWorld() || !b.isActive();
+              } catch (e) {
+                return true; // Body is invalid/destroyed
+              }
+            });
+            if (anyDeadOrConsumed) {
+              this.dead = true;
+              return;
+            }
           }
           inUpdate = true;
-          origUpdate();
+          try {
+            origUpdate();
+          } catch (e) {
+            // If update throws (likely because body was destroyed mid-update), mark as dead
+            console.warn('Updater error, marking dead:', e.message);
+            this.dead = true;
+          }
           inUpdate = false;
         },
       });
