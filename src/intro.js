@@ -34,9 +34,9 @@ const SPAWN = {
   FOOTER_LINKS: 200,
 };
 
-const SPEECH_TEXT = 'OH NOOO THE CRASHING CORRUPTING CORE IS HERE!! ITS GOING TO DESTROY ALL OF US SAVE USSS';
+const SPEECH_TEXT = 'OH NOOO THE Collapsing Corrupting Core of Crashes IS HERE!! ITS GOING TO DESTROY ALL OF US SAVE USSS';
 const GEMINI_GREETING = 'Hi, I\'m Gemini! How can I help you?';
-const GEMINI_SPEECH = 'Oh no, Dino! Please help me defeat The Crash! Build things by searching for them!';
+const GEMINI_SPEECH = 'Can you please help me defeat the Collapsing Corrupting Core of Crashes! Build things by searching for them!';
 const RUN_SPEED = 15;    // m/s rightward
 
 // ─── Sprite image (base64 data URI) ────────────────────────────────────────
