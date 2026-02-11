@@ -67,9 +67,6 @@ async function handleSearch(text, searchBarBody) {
   searchBar.setLoading(true);
   geminiIcon.setLoading(true);
 
-  // Cancel idle auto-prompt since user is searching
-  cancelIdleAutoPrompt();
-
   // Stop animated placeholder when user starts searching
   searchBar.stopAnimatedPlaceholder();
 
@@ -246,29 +243,6 @@ function setupLuckyClickHandler() {
 
 let combatSpawnScheduled = false;
 
-// --- Idle auto-prompt: if player hasn't searched 15s after intro, auto-submit ---
-let idleAutoPromptDone = false;
-let idleAutoPromptTimer = null;
-
-function startIdleAutoPromptTimer() {
-  if (idleAutoPromptDone || idleAutoPromptTimer) return;
-  idleAutoPromptTimer = setTimeout(() => {
-    if (idleAutoPromptDone || isGenerating) return;
-    idleAutoPromptDone = true;
-    const autoPrompt = 'tank';
-    searchBar.setText(autoPrompt);
-    handleSearch(autoPrompt, searchBar.body);
-  }, 15000);
-}
-
-function cancelIdleAutoPrompt() {
-  if (idleAutoPromptTimer) {
-    clearTimeout(idleAutoPromptTimer);
-    idleAutoPromptTimer = null;
-  }
-  idleAutoPromptDone = true;
-}
-
 // --- Game loop ---
 function loop() {
   const state = gameState.getState();
@@ -283,8 +257,6 @@ function loop() {
   if (intro.isComplete() && !combatSpawnScheduled && state === 'idle') {
     combatSpawnScheduled = true;
     setTimeout(() => gameState.start(), CRASH_SPAWN_DELAY);
-    // Start idle auto-prompt timer
-    startIdleAutoPromptTimer();
   }
 
   // Run all updaters from generated objects (with auto-removal on error)

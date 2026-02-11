@@ -352,10 +352,10 @@ function drawSearchBar(ctx, obj) {
   ctx.shadowBlur = 8;
   ctx.shadowOffsetY = 2;
 
-  // Rounded rect fill
+  // Rounded rect fill (greyed out when loading)
   ctx.beginPath();
   ctx.roundRect(x, y, w, h, r);
-  ctx.fillStyle = obj.color;
+  ctx.fillStyle = obj.loading ? '#f0f0f0' : obj.color;
   ctx.fill();
 
   ctx.shadowColor = 'transparent';
@@ -363,7 +363,7 @@ function drawSearchBar(ctx, obj) {
   ctx.shadowOffsetY = 0;
 
   // Border
-  ctx.strokeStyle = obj.borderColor;
+  ctx.strokeStyle = obj.loading ? '#ccc' : obj.borderColor;
   ctx.lineWidth = 1.5;
   ctx.stroke();
 

@@ -133,6 +133,9 @@ export function createSearchBar(world, x, y, onSubmit) {
 
   // --- Keyboard input ---
   window.addEventListener('keydown', (e) => {
+    // Block input while generating
+    if (obj.loading) return;
+
     if (e.key === 'Enter') {
       if (obj.text && onSubmit) {
         onSubmit(obj.text, body);
@@ -169,7 +172,6 @@ export function createSearchBar(world, x, y, onSubmit) {
     body,
     obj,
     setLoading(v) { obj.loading = v; },
-    setText(t) { obj.text = t; },
     startAnimatedPlaceholder,
     stopAnimatedPlaceholder,
     restoreForVictory,
