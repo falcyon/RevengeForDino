@@ -53,16 +53,20 @@ export function drawSpeechBubble(ctx, options) {
   let lines = [];
   const codeMaxLines = Math.min(maxLines, 8); // Code gets fewer lines
 
+  // Measure how many monospace chars fit in the available width
+  const availableW = maxWidth - padding * 2;
+  const charW = ctx.measureText('M').width; // widest monospace char
+  const maxChars = Math.floor(availableW / charW);
+
   if (isCode) {
     const codeLines = text.split('\n');
     // If code is minified (single long line), wrap it
-    if (codeLines.length === 1 && codeLines[0].length > 45) {
+    if (codeLines.length === 1 && codeLines[0].length > maxChars + 5) {
       const code = codeLines[0];
-      const charsPerLine = 38;
-      for (let i = 0; i < code.length && lines.length < codeMaxLines - 1; i += charsPerLine) {
-        lines.push(code.substring(i, i + charsPerLine));
+      for (let i = 0; i < code.length && lines.length < codeMaxLines - 1; i += maxChars) {
+        lines.push(code.substring(i, i + maxChars));
       }
-      if (code.length > charsPerLine * (codeMaxLines - 1)) {
+      if (code.length > maxChars * (codeMaxLines - 1)) {
         lines.push('...');
       }
     } else {
@@ -72,7 +76,7 @@ export function drawSpeechBubble(ctx, options) {
           lines.push('...');
           break;
         }
-        const truncated = line.length > 40 ? line.substring(0, 37) + '...' : line;
+        const truncated = line.length > maxChars ? line.substring(0, maxChars - 3) + '...' : line;
         lines.push(truncated);
       }
     }
