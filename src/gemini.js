@@ -2,9 +2,9 @@ const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 // Primary: gemini-3-pro-preview for code generation
 const PRIMARY_URL =
   `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${API_KEY}`;
-// Fallback: gemini-2.0-flash if primary fails
+// Fallback: gemini-2.5-pro if primary fails
 const FALLBACK_URL =
-  `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
+  `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${API_KEY}`;
 // Flash for normalization (cheap, fast)
 const FLASH_URL =
   `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
@@ -193,20 +193,28 @@ export async function generateObject(userPrompt) {
     body: requestBody,
   };
 
-  // Try primary model first (gemini-3-pro-preview)
-  let response = await fetchWithRetry(PRIMARY_URL, requestOptions);
+  // Try primary model first (gemini-3-pro-preview), fall back to gemini-2.5-pro
+  let response;
   let usedFallback = false;
 
-  // If primary fails, try fallback (gemini-2.0-flash)
-  if (!response.ok) {
-    console.warn(`Primary model failed (${response.status}), trying fallback...`);
-    response = await fetchWithRetry(FALLBACK_URL, requestOptions);
+  try {
+    response = await fetchWithRetry(PRIMARY_URL, requestOptions);
+    if (!response.ok) {
+      throw new Error(`Primary model HTTP ${response.status}`);
+    }
+  } catch (primaryErr) {
+    console.warn(`Primary model failed: ${primaryErr.message}, trying fallback (gemini-2.5-pro)...`);
     usedFallback = true;
+    try {
+      response = await fetchWithRetry(FALLBACK_URL, requestOptions);
+    } catch (fallbackErr) {
+      conversationHistory.pop();
+      throw new Error('Both Gemini models failed. Try again in a moment.');
+    }
   }
 
   if (!response.ok) {
     conversationHistory.pop();
-    // Provide user-friendly error messages for common API issues
     if (response.status === 429) {
       throw new Error('Gemini API rate limit exceeded. Try again in a moment.');
     }
@@ -230,7 +238,7 @@ export async function generateObject(userPrompt) {
     throw new Error('Gemini response was truncated (code too long). Try a simpler request.');
   }
 
-  const modelUsed = usedFallback ? 'gemini-2.0-flash (fallback)' : 'gemini-3-pro-preview';
+  const modelUsed = usedFallback ? 'gemini-2.5-pro (fallback)' : 'gemini-3-pro-preview';
   console.log(`[Gemini raw response - ${modelUsed}]`, text);
 
   conversationHistory.push({
@@ -240,5 +248,5 @@ export async function generateObject(userPrompt) {
 
   const code = stripCodeFences(text);
   console.log('[Gemini stripped code]', code);
-  return { code };
+  return { code, usedFallback };
 }
