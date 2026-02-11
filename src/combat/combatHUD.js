@@ -24,6 +24,9 @@ export function createCombatHUD(canvas, gameState, geminiIcon, intro, searchBar,
   let mainTextBody = null;
   let subtitleBody = null;
   let playAgainBody = null;
+  let shareBody = null;
+  let shareButtonCreated = false;
+  let copiedToastTime = 0;
 
   /**
    * Initialize particles (confetti falls for victory, debris rises for defeat)
@@ -347,9 +350,105 @@ export function createCombatHUD(canvas, gameState, geminiIcon, intro, searchBar,
       const localY = dx * sin + dy * cos;
 
       if (Math.abs(localX) <= btnHW && Math.abs(localY) <= btnHH) {
+        if (window.umami) window.umami.track('play-again');
         window.location.reload();
       }
     });
+  }
+
+  /**
+   * Create Share button next to Play Again (victory only)
+   */
+  function createShareButton() {
+    if (shareButtonCreated) return;
+    if (!playAgainBody) return;
+    shareButtonCreated = true;
+
+    const btnHW = 8;
+    const btnHH = 2.5;
+
+    // Position to the right of Play Again
+    const playPos = playAgainBody.getPosition();
+    const shareX = playPos.x + 22; // offset right of play again
+    const shareY = playPos.y;
+
+    shareBody = world.createBody({
+      type: 'static',
+      position: new planck.Vec2(shareX, shareY),
+    });
+    shareBody.setUserData({ draggable: true });
+
+    shareBody.createFixture(new planck.Box(btnHW, btnHH), {
+      density: 0.4,
+      friction: 0.6,
+      restitution: 0.3,
+    });
+
+    const shareObj = {
+      body: shareBody,
+      type: 'victory-button',
+      hw: btnHW,
+      hh: btnHH,
+      label: 'Share',
+      color: '#0F9D58',
+    };
+    registerObject(shareObj);
+
+    // Click listener
+    canvas.addEventListener('click', (e) => {
+      if (!shareBody) return;
+      const mx = e.clientX / SCALE;
+      const my = e.clientY / SCALE;
+      const currentPos = shareBody.getPosition();
+      const angle = shareBody.getAngle();
+
+      const dx = mx - currentPos.x;
+      const dy = my - currentPos.y;
+      const cos = Math.cos(-angle);
+      const sin = Math.sin(-angle);
+      const localX = dx * cos - dy * sin;
+      const localY = dx * sin + dy * cos;
+
+      if (Math.abs(localX) <= btnHW && Math.abs(localY) <= btnHH) {
+        const stats = gameState.getStats();
+        const elapsed = stats.elapsed;
+        const mins = Math.floor(elapsed / 60);
+        const secs = Math.floor(elapsed % 60);
+        const timeStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+
+        const shareText = `I defeated The Crash in ${timeStr} using AI-generated physics objects! Try it: https://leff.in/lab/dinoRevenge`;
+        navigator.clipboard.writeText(shareText).then(() => {
+          copiedToastTime = Date.now();
+        });
+      }
+    });
+  }
+
+  /**
+   * Draw "Copied!" toast near share button
+   */
+  function drawCopiedToast() {
+    if (copiedToastTime === 0) return;
+    const elapsed = (Date.now() - copiedToastTime) / 1000;
+    if (elapsed > 2) {
+      copiedToastTime = 0;
+      return;
+    }
+
+    if (!shareBody) return;
+    const pos = shareBody.getPosition();
+    const sx = pos.x * SCALE;
+    const sy = pos.y * SCALE - 30;
+
+    const alpha = elapsed < 1.5 ? 1 : 1 - (elapsed - 1.5) / 0.5;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#0F9D58';
+    ctx.font = 'bold 14px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('Copied to clipboard!', sx, sy);
+    ctx.restore();
   }
 
   /**
@@ -402,6 +501,23 @@ export function createCombatHUD(canvas, gameState, geminiIcon, intro, searchBar,
     // Track time since game over
     if (gameOverTime === 0) {
       gameOverTime = Date.now();
+
+      // Track game outcome in Umami
+      if (window.umami) {
+        const stats = gameState.getStats();
+        if (isVictory) {
+          window.umami.track('game-won', {
+            time: Math.floor(stats.elapsed),
+            objectsCreated: stats.objectsCreated,
+            damageDealt: Math.floor(stats.totalDamageDealt),
+          });
+        } else {
+          window.umami.track('game-lost', {
+            reason: gameState.defeatReason,
+            time: Math.floor(stats.elapsed),
+          });
+        }
+      }
     }
     const timeSinceGameOver = (Date.now() - gameOverTime) / 1000;
 
@@ -429,6 +545,14 @@ export function createCombatHUD(canvas, gameState, geminiIcon, intro, searchBar,
     if (timeSinceGameOver > 1.2) {
       createPlayAgainButton(isVictory);
     }
+
+    // Create Share button (victory only) after Play Again exists
+    if (isVictory && timeSinceGameOver > 1.2) {
+      createShareButton();
+    }
+
+    // Draw "Copied!" toast
+    drawCopiedToast();
   }
 
   return { draw };

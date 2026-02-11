@@ -754,6 +754,7 @@ function drawGeminiIcon(ctx, obj) {
       maxWidth: 280,
       theme: 'auto',
       tailDirection: 'down',
+      label: obj.speechLabel || null,
     });
     ctx.restore();
   }

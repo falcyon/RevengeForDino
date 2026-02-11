@@ -188,19 +188,22 @@ export function createGeminiIcon(world, canvas) {
     }
   }
 
-  function setSpeech(text) {
+  function setSpeech(text, options) {
     if (text) {
       obj.showSpeech = true;
       obj.speechText = text;
+      obj.speechLabel = options?.label || null;
     } else {
       obj.showSpeech = false;
       obj.speechText = '';
+      obj.speechLabel = null;
     }
   }
 
   function hideSpeech() {
     obj.showSpeech = false;
     obj.speechText = '';
+    obj.speechLabel = null;
   }
 
   /**

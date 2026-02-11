@@ -169,6 +169,7 @@ export function createSearchBar(world, x, y, onSubmit) {
     body,
     obj,
     setLoading(v) { obj.loading = v; },
+    setText(t) { obj.text = t; },
     startAnimatedPlaceholder,
     stopAnimatedPlaceholder,
     restoreForVictory,

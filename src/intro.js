@@ -268,6 +268,9 @@ export function createIntro(world, canvas, healthBar, geminiIcon, searchBar, goo
       complete = true;
       healthBar.setIntroComplete();
 
+      // Track game start in Umami
+      if (window.umami) window.umami.track('game-started');
+
       // Gemini speaks when crash appears
       if (geminiIcon && !geminiAppeared) {
         geminiAppeared = true;
