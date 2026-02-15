@@ -1,5 +1,5 @@
 export default {
-  base: '/interactives/dinoRevenge/',
+  base: '/',
   build: {
     rollupOptions: {
       input: {
