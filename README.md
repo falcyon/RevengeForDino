@@ -2,7 +2,7 @@
 
 A physics-based combat game where you team up with Gemini AI to defeat the **Collapsing Corrupting Core of Crashes** - a corrupting void that threatens to consume everything.
 
-**Play now at: [leff.in/dinoRevenge](https://leff.in/dinoRevenge)**
+**Play now at: [leff.in/interactives/dinoRevenge](https://leff.in/interactives/dinoRevenge)**
 
 ## Gameplay
 
