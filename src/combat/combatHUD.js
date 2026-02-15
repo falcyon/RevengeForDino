@@ -416,7 +416,7 @@ export function createCombatHUD(canvas, gameState, geminiIcon, intro, searchBar,
         const secs = Math.floor(elapsed % 60);
         const timeStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
 
-        const shareText = `I defeated The Crash in ${timeStr} using AI-generated physics objects! Try it: https://leff.in/lab/dinoRevenge`;
+        const shareText = `I defeated The Crash in ${timeStr} using AI-generated physics objects! Try it: https://leff.in/interactives/dinoRevenge`;
         navigator.clipboard.writeText(shareText).then(() => {
           copiedToastTime = Date.now();
         });
